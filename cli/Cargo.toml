@@ -1,5 +1,6 @@
 [package]
 name = "backed-cli"
+description = "Check whether NEAR protocols hold what they owe, at one block height."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -9,3 +10,12 @@ name = "backed"
 path = "src/main.rs"
 
 [dependencies]
+backed-checker = { path = "../contracts/checker" }
+# lets near-sdk (pulled in by the checker's logic) compile outside a contract
+near-sdk = { workspace = true, features = ["non-contract-usage"] }
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+reqwest = { version = "0.13", features = ["blocking", "json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
