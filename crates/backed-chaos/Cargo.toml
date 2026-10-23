@@ -1,7 +1,9 @@
 [package]
 name = "backed-chaos"
+description = "Chaos testing for NEAR contracts: inject NEAR runtime failures, check owed <= held after every receipt."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
+# The sandbox runner (near-sandbox + near-api) is added in the next build step.

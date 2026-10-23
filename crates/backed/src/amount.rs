@@ -4,7 +4,7 @@
 //! *claimed* instead of what was delivered. Here, a balance can only grow from a
 //! [`Delivered`] value, and there is no way to turn a [`Claimed`] into one.
 
-use near_sdk::{env, AccountId, PromiseResult};
+use near_sdk::{env, AccountId};
 
 /// Any amount a caller says: function arguments, `msg` fields, route minimums.
 /// It can be used for checks and limits, never to credit a balance.
@@ -41,10 +41,10 @@ impl Delivered {
         if env::predecessor_account_id() != env::current_account_id() {
             return None;
         }
-        match env::promise_result(index) {
-            PromiseResult::Successful(bytes) => parse_u128_json(&bytes).map(|amount| Self { amount }),
-            PromiseResult::Failed => None,
-        }
+        // Bounded read: a U128 JSON string is under 64 bytes. A huge result
+        // can't make this callback run out of gas.
+        let bytes = env::promise_result_checked(index, 64).ok()?;
+        parse_u128_json(&bytes).map(|amount| Self { amount })
     }
 
     /// Splits off `part` (e.g. a capped refund). Returns `None` if `part` is

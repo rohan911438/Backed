@@ -1,7 +1,16 @@
 [package]
 name = "naive-vault"
+description = "DELIBERATELY VULNERABLE example: the three 2026 NEAR bug patterns. Never deploy with real funds."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+near-sdk = { workspace = true }
+
+[dev-dependencies]
+near-sdk = { workspace = true, features = ["unit-testing"] }
