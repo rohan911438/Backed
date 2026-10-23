@@ -11,7 +11,7 @@ Method: attack the design, fix it, verify against NEAR code or mainnet. Severity
 | 1.3 | **H** | The checker reads **external** protocols (Intents, Rhea) that don't have our counters, so they're exposed to the same race. | Two-attestation persistence rule (`Suspected` → `Confirmed` ≥ 30 blocks apart) + tolerance/dust floor. Exact detection is done off-chain at one `block_id`. | Live scan of 370 Intents tokens at one block: consistent results. |
 | 1.4 | **H** | Polling on-chain would burn the budget (~0.003 NEAR per attest × many pairs × every few minutes). | **Lazy attestation:** free off-chain scanner watches; on-chain `attest` only on mismatch (+ optional daily heartbeat). | Cost estimate; measure real gas day 1. |
 | 1.5 | **H** | Log budgeting can be done wrong: Intents *had* a log pre-check, but on values that weren't capped yet. | Fixed order in the resolve: **cap refunds → compute log size on capped values → emit**. | `crates/near/nep245/src/checked.rs` (`check_refund`, Aug 2026) existed before the exploit. |
-| 1.6 | **M** | Fee-on-transfer, burning or rebasing tokens make real holdings drop without a bug in the protocol. Our scan found 2 under-backed memecoins in Intents. | Report **token behavior** with each breach; the library can refuse such tokens or measure the delivered amount through reconcile. Don't call every breach an exploit. | Live: `ninu-4` / `batman-4.nearlytrade.near` shortfalls; supply below initial (burns). |
+| 1.6 | **M** | Fee-on-transfer, burning or rebasing tokens make real holdings drop without a bug in the protocol. Our scan found 3 under-backed tokens in Intents (2 memecoins, 1 test token). | Report **token behavior** with each breach; the library can refuse such tokens or measure the delivered amount through reconcile. Don't call every breach an exploit. | Live: `ninu-4` / `batman-4.nearlytrade.near` shortfalls; supply below initial (burns). |
 
 ## Round 2 — Attack the product
 
@@ -31,7 +31,7 @@ Method: attack the design, fix it, verify against NEAR code or mainnet. Severity
 |---|---|---|---|
 | 3.1 | **H** | Solo scope: library + harness + contract + CLI + web + skill. | Strict order with a cut list (see 07). The replays and Intents adapter are must-haves; the rest is trimmable. |
 | 3.2 | **M** | near-sandbox doesn't run natively on Windows. | WSL Ubuntu is installed on this machine; Rust 1.95 + wasm32 target present. |
-| 3.3 | **M** | Checker contract size vs $5 budget. | Minimal dependencies, opt-level "z", wasm-opt; realistic total $6–10. |
+| 3.3 | **M** | Checker contract size vs $5 budget. | Measured 156KB (164KB before replacing serde_json::Value with a small reader). near-sdk itself is most of it. Realistic total ~$8–9. |
 | 3.4 | **L** | Replays use minimal reproductions, not the production contracts. | Say so plainly. Stretch: run chaos against the real `near/intents` v0.4.4 (public source). |
 
 **Status: no open critical findings.** Remaining items are measurements for day 1:

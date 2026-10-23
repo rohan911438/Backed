@@ -17,6 +17,7 @@ Hackathon: NEAR HACKATHON (build Nov 1–14, 2026). Solo, Rust. Main tracks: `se
 | [07-deliverables-and-plan.md](07-deliverables-and-plan.md) | SDK / CLI / web app decision, deliverables, 14-day plan, budget, submission checklist |
 | [08-design-audit.md](08-design-audit.md) | Audit of this design: findings, fixes, open questions |
 | [09-demo-and-pitch.md](09-demo-and-pitch.md) | 2-minute demo script, pitch lines, judge Q&A |
+| [10-user-workflows.md](10-user-workflows.md) | Step by step for developers, protocols, agents, AI coding agents and judges; what exists vs what is being built |
 
 ## In 30 seconds
 
@@ -32,6 +33,6 @@ Hackathon: NEAR HACKATHON (build Nov 1–14, 2026). Solo, Rust. Main tracks: `se
 4. **CLI + live web page + AI-coding-agent skill**: check any protocol in one command, see NEAR Intents' backing token by token, and have Claude Code / Codex write NEAR contracts with Backed by default.
 
 **Proof it's real (verified 2026-10-23 on mainnet):**
-- intents.near: 342 of 370 NEAR-native tokens checked at one block height are fully backed. **2 small memecoins are under-backed** (unexplained shortfall). Our check finds real mismatches today.
+- intents.near: of 370 NEAR-native tokens checked at one block height, **362 are fully backed and 3 are under-backed** (2 memecoins, 1 test token; unexplained shortfall). Our check finds real mismatches today.
 - Rhea lending: every major token is fully backed.
 - NEAR's own engineers wrote this exact check as a manual script after the October exploit (`scripts/list_nep245_tokens.sh` in near/intents). Backed makes it continuous, on-chain and preventive.

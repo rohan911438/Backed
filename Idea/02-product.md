@@ -33,7 +33,7 @@ Nothing to install. The checker reads their public views (`mt_supply`, `get_asse
 The Backed skill file tells it: when writing a NEAR contract that holds tokens, use Backed's building blocks, never credit from caller-supplied numbers, keep callbacks private and bounded, run `backed-chaos` before finishing.
 
 ### E. The NEAR Intents team
-A public, continuous version of the script they wrote by hand after the exploit (`list_nep245_tokens.sh`). Day one it shows 2 under-backed memecoins they may want to look at.
+A public, continuous version of the script they wrote by hand after the exploit (`list_nep245_tokens.sh`). Day one it shows 3 under-backed tokens (2 launchpad memecoins and a test token) they may want to look at.
 
 ## What Backed guarantees
 For a contract built with `backed`:

@@ -47,10 +47,10 @@
 ## Budget
 | Item | Cost |
 |---|---|
-| Checker contract deploy (~100–180KB at 1 NEAR / 100KB of storage) | ~1–1.8 NEAR |
+| Checker contract deploy (**measured: 156KB** with cargo-near 0.22, at 1 NEAR / 100KB of storage) | ~1.56 NEAR |
 | Mainnet attestations during the demo (~0.003 NEAR each, estimated) | <0.1 NEAR |
 | Everything else (sandbox, GitHub Pages, Actions cron, RPC) | free |
-| **Total** | **~1.2–2 NEAR ≈ $6–10** at ~$4.9/NEAR |
+| **Total** | **~1.7 NEAR ≈ $8–9** at ~$4.9/NEAR |
 
 Keeping the checker contract small (no heavy dependencies, opt-level "z", wasm-opt) is what keeps this near $5.
 

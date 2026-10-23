@@ -48,6 +48,9 @@ enum Cmd {
         /// Parallel requests (keep low on free RPCs).
         #[arg(long, default_value_t = 3)]
         parallel: usize,
+        /// Also fetch each token's symbol and decimals (one extra call per token).
+        #[arg(long)]
+        metadata: bool,
     },
     /// Print the near-cli command that records an attestation on-chain.
     Attest {
@@ -72,6 +75,17 @@ struct Reading {
     status: &'static str,
     shortfall: Option<String>,
     error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    symbol: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    decimals: Option<u8>,
+}
+
+fn add_metadata(rpc: &Rpc, r: &mut Reading) {
+    if let Ok(m) = rpc.view(&r.token, "ft_metadata", &json!({}), r.block) {
+        r.symbol = m["symbol"].as_str().map(|s| s.chars().take(24).collect());
+        r.decimals = m["decimals"].as_u64().and_then(|d| u8::try_from(d).ok());
+    }
 }
 
 fn adapter_for(target: &str, explicit: Option<&str>) -> Result<AdapterKind> {
@@ -105,6 +119,8 @@ fn read(rpc: &Rpc, target: &str, kind: &AdapterKind, token: &str, block: u64) ->
         status: "error",
         shortfall: None,
         error: None,
+        symbol: None,
+        decimals: None,
     };
     let (method, args) = owed_view(kind, token);
     let owed = rpc
@@ -161,7 +177,7 @@ fn main() -> Result<()> {
                 print_table(&rows);
             }
         }
-        Cmd::ScanIntents { limit, parallel } => {
+        Cmd::ScanIntents { limit, parallel, metadata } => {
             let block = rpc.final_block()?;
             let mut tokens = Vec::new();
             let mut from = 0u64;
@@ -186,7 +202,13 @@ fn main() -> Result<()> {
             for chunk in tokens.chunks(parallel.max(1)) {
                 let got: Vec<Reading> = std::thread::scope(|s| {
                     let handles: Vec<_> =
-                        chunk.iter().map(|t| s.spawn(|| read(&rpc, "intents.near", &kind, t, block))).collect();
+                        chunk.iter().map(|t| s.spawn(|| {
+                            let mut r = read(&rpc, "intents.near", &kind, t, block);
+                            if metadata {
+                                add_metadata(&rpc, &mut r);
+                            }
+                            r
+                        })).collect();
                     handles.into_iter().map(|h| h.join().expect("thread")).collect()
                 });
                 rows.extend(got);

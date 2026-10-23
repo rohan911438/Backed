@@ -14,7 +14,7 @@
 | 0:15–0:35 | NEAR's own regression test comment (log limit → resolve failed) | "On NEAR, a callback can fail on a log-size limit, and nothing rolls back. Ethereum doesn't have this problem." |
 | 0:35–1:05 | Terminal: `cargo test replay_` → naive ❌ owed > held; Backed ✅ | "Same attack, three times. Naive contracts end up owing money they don't have. Backed contracts can't." |
 | 1:05–1:25 | Terminal: `backed chaos naive.wasm` finding F2/F4 by itself | "The chaos tester fails every async step on purpose and checks the books after each one." |
-| 1:25–1:45 | Web page: Intents live backing, 342 tokens ✅, 2 memecoins ⚠️ | "Live on mainnet: NEAR Intents is fully backed for its major tokens. Our scan even found two small tokens it owes more of than it holds." |
+| 1:25–1:45 | Web page: Intents live backing, 362 tokens ✅, 3 under-backed ⚠️ | "Live on mainnet: NEAR Intents is fully backed for its major tokens. Our scan even found three small tokens it owes more of than it holds." |
 | 1:45–2:00 | Explorer: a real `attest` transaction on the checker contract | "And anyone can prove it on-chain, no trusted reporter. Backed: never owe more than you hold." |
 
 ## Judge Q&A
@@ -35,7 +35,7 @@ No. It stops the "owe more than you hold" family and makes everything else that 
 Three places: AI attackers make continuous checks necessary (the 2026 attacks were set up over days); AI coding agents get safe-by-default patterns through the skill; AI agents and wallets read the checker before depositing.
 
 **"Did you find something real?"**
-Yes. Two memecoins in Intents are under-backed at block 221,249,220. It's likely token mechanics (burns or transfer fees) that Intents' ledger doesn't see: the same class, small scale. We report it as a finding, not an exploit.
+Yes. Three small tokens in Intents (two memecoins and a test token) are under-backed at block 221,256,203. It's likely token mechanics (burns or transfer fees) that Intents' ledger doesn't see: the same class, small scale. We report it as a finding, not an exploit.
 
 ## README structure (for AI judges)
 1. What it is (2 lines). 2. The problem with sources. 3. Try it in 3 commands: `cargo test replay_`, `backed check intents.near`, open the web page. 4. Architecture diagram. 5. What it guarantees and what it doesn't. 6. Mainnet addresses. 7. Tracks and NEAR features used.

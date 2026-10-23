@@ -44,6 +44,7 @@ Backing check = `held` (token contract's `ft_balance_of(protocol)`) vs `owed` (t
 **NEAR Intents (`intents.near`, v0.4.5), snapshot block 221,249,220**
 - 87,327 token ids registered: 370 NEP-141, 339 NEP-245, 86,618 NEP-171 (NFTs).
 - NEP-141 checked: **342 fully backed** (44 with a small surplus), **2 under-backed**, 26 not checkable (23 because of a discontinued RPC endpoint, 3 token-side errors).
+- **Full rescan with the `backed` CLI (block 221,256,203):** all 370 read: **362 backed, 3 under-backed, 5 unreadable** (broken token contracts, e.g. `aurora`'s balance view is not callable as a view). The third under-backed token is `nvdastest.optimal-bone.near`, which looks like a test token.
 - Under-backed: `ninu-4.nearlytrade.near` (NEAR INU) short 1.19e21 base units; `batman-4.nearlytrade.near` (BATMAN) short 2.56e20 base units. Both are launchpad memecoins whose total supply shrinks (burns). The shortfall is consistent with token mechanics Intents' ledger doesn't see (burns or transfer fees): **the same "credited ≠ received" class, small scale.** Not claimed as an exploit; flagged for investigation.
 - Major tokens: wNEAR owes 16,360,481 / holds 16,360,501; USDC 4,286,910 / 4,291,913; USDT 513,080 / 513,100; ZEC 28,659.99 / 28,660.05; nBTC 141.52 / 141.52.
 

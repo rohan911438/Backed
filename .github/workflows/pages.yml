@@ -1,0 +1,58 @@
+name: Pages
+
+# Builds the web page with a fresh same-block snapshot of NEAR Intents and
+# deploys it. Runs on push and every 30 minutes (the "keeper"), so the live
+# page stays current without committing snapshot files.
+#
+# Needs: Settings → Pages → Source: GitHub Actions. GitHub Pages on a private
+# repository needs a paid plan; it works on the free plan once the repo is public.
+
+# Manual only for now: while the repo is private and Pages is off, push and
+# schedule triggers would fail every 30 minutes. To turn on, add back:
+#   push: { branches: [main] }
+#   schedule: [{ cron: "*/30 * * * *" }]
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Same-block scan of NEAR Intents
+        run: |
+          cargo build --release -p backed-cli
+          ./target/release/backed scan-intents --metadata --json > web/public/intents-snapshot.json
+          ./target/release/backed scan-intents
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Build site
+        working-directory: web
+        run: npm ci && npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

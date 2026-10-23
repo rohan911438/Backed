@@ -4,7 +4,7 @@
 
 Backed is a Rust library, a chaos-testing harness and an on-chain checker. Together they prevent, test for and detect one NEAR-specific bug family: a contract's internal ledger drifting away from the tokens it actually holds.
 
-> **Status: design phase.** Building for NEAR HACKATHON runs Nov 1–14, 2026. The full design is in [`Idea/`](Idea/README.md). Sections marked *(planned)* describe what is being built, not what exists yet.
+> **Status: early build.** Working today: the `backed` library, the checker contract (not yet deployed), example vaults, the chaos scenario catalog, the `backed` CLI against mainnet, and the web page. Still to build: the sandbox chaos runner, mainnet deployment and the agent skill. Design: [`Idea/`](Idea/README.md). Sections marked *(planned)* aren't built yet.
 
 ---
 
@@ -37,31 +37,36 @@ Architecture: [`Idea/03-architecture.md`](Idea/03-architecture.md)
 
 Backing = tokens the protocol holds (`ft_balance_of`) vs what it owes (its own views), read at the same block height.
 
-- **NEAR Intents** (`intents.near`, block 221,249,220): of 370 NEP-141 tokens, **342 are fully backed** and **2 small memecoins are under-backed** (`ninu-4.nearlytrade.near`, `batman-4.nearlytrade.near`). The shortfall is consistent with token burns or transfer fees that the ledger doesn't see. It's reported as a finding, not an exploit.
+- **NEAR Intents** (`intents.near`, block 221,256,203): of 370 NEP-141 tokens, **362 are fully backed**, **3 are under-backed** (`ninu-4.nearlytrade.near`, `batman-4.nearlytrade.near`, and the test token `nvdastest.optimal-bone.near`) and 5 can't be read (broken token contracts). The shortfall is consistent with token burns or transfer fees that the ledger doesn't see. It's reported as a finding, not an exploit.
 - **Rhea lending** (`contract.main.burrow.near`): every major token is fully backed.
 
 After the October exploit, NEAR's engineers ran this kind of check by hand (`scripts/list_nep245_tokens.sh` in [near/intents](https://github.com/near/intents)). Backed makes it continuous, on-chain and preventive.
 
-## Try it *(planned, available during the hackathon)*
+## Try it
+
+Rust builds need Linux, macOS or WSL (near-sdk tests don't build with the Windows GNU toolchain).
 
 | Do | See |
 |---|---|
-| `cargo test replay_` | Three replays. Naive contracts end with owed > held; Backed contracts don't. |
-| `backed check intents.near` | A same-block table of owed vs held for each token. |
-| `backed chaos path/to/contract.wasm` | Findings from failure injection, if any. |
-| Open the web page | Live backing for NEAR Intents and Rhea lending, plus on-chain breach history. |
+| `cargo test -p backed -p backed-checker -p backed-chaos -p naive-vault -p backed-vault` | 32 passing tests, incl. an async timing simulation (200 runs, zero false alarms) and Rhea lending math on a real mainnet fixture |
+| `cargo run -p backed-cli -- check intents.near --token usdt.tether-token.near` | Owed vs held for that token, read at one block height |
+| `cargo run -p backed-cli -- scan-intents` | Every NEP-141 token in NEAR Intents: backed, under-backed, unreadable |
+| `cd web && npm install && npm run dev` | The web page: token sphere, live explorer, a Verify button per row |
+| `cd contracts/checker && cargo near build non-reproducible-wasm` | The checker contract wasm (156KB) |
+| *(planned)* `cargo test replay_` | Three replays in the NEAR sandbox: naive vault loses money, Backed vault doesn't |
 
-## Repository layout *(planned)*
+## Repository layout
 
 ```
-crates/backed/          library (Ledger, Delivered/Claimed, safe receiver/withdraw, reconcile)
-crates/backed-chaos/    sandbox harness, failure injections, incident replays
-contracts/checker/      mainnet backing checker
-contracts/examples/     naive vs Backed example contracts
-cli/                    backed CLI (check, scan, attest, chaos)
-web/                    static live page
-skill/SKILL.md          instructions for AI coding agents
-Idea/                   design documents
+crates/backed/          library: Ledger, Delivered/Claimed, capped refunds, LogBudget, reconcile
+crates/backed-chaos/    failure catalog F1–F8, invariant oracle, three incident scenarios (sandbox runner planned)
+contracts/checker/      backing checker contract (Intents, Rhea and Backed-standard adapters)
+contracts/examples/     naive-vault (the three 2026 bug patterns, on purpose) and backed-vault
+cli/                    backed CLI: check, scan-intents, attest
+web/                    static web page (Vite + React), reads NEAR RPC from the browser
+.github/workflows/      CI, and Pages deploy with a fresh scan every 30 minutes
+Idea/                   design documents, incl. user workflows
+skill/SKILL.md          (planned) instructions for AI coding agents
 ```
 
 ## What Backed does not do
@@ -84,4 +89,4 @@ Idea/                   design documents
 | [Architecture](Idea/03-architecture.md) | [Innovations](Idea/04-innovations.md) |
 | [Why NEAR](Idea/05-why-near.md) | [Competitors](Idea/06-competitors.md) |
 | [Deliverables and plan](Idea/07-deliverables-and-plan.md) | [Design audit](Idea/08-design-audit.md) |
-| [Demo and pitch](Idea/09-demo-and-pitch.md) | |
+| [Demo and pitch](Idea/09-demo-and-pitch.md) | [User workflows](Idea/10-user-workflows.md) |
