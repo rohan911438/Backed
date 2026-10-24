@@ -1,12 +1,13 @@
 // Browser-side NEAR reads. Every check pins owed and held to one block height,
 // the same method as the `backed` CLI, so in-flight transfers can't skew it.
 
-const RPCS = ["https://free.rpc.fastnear.com", "https://rpc.mainnet.fastnear.com"];
+import { RPCS, type NetworkId } from "./config";
 
-async function rpc(method: string, params: unknown): Promise<any> {
+export async function rpc(method: string, params: unknown, network: NetworkId = "mainnet"): Promise<any> {
+  const urls = RPCS[network];
   let lastError: unknown;
   for (let attempt = 0; attempt < 6; attempt++) {
-    const url = RPCS[attempt % RPCS.length];
+    const url = urls[attempt % urls.length];
     try {
       const res = await fetch(url, {
         method: "POST",
@@ -30,19 +31,29 @@ async function rpc(method: string, params: unknown): Promise<any> {
   throw lastError;
 }
 
-export async function finalBlock(): Promise<number> {
-  const r = await rpc("block", { finality: "final" });
+export async function finalBlock(network: NetworkId = "mainnet"): Promise<number> {
+  const r = await rpc("block", { finality: "final" }, network);
   return r.header.height;
 }
 
-export async function view(account: string, method: string, args: object, block: number): Promise<string> {
-  const r = await rpc("query", {
-    request_type: "call_function",
-    block_id: block,
-    account_id: account,
-    method_name: method,
-    args_base64: btoa(JSON.stringify(args)),
-  });
+export async function view(
+  account: string,
+  method: string,
+  args: object,
+  block: number,
+  network: NetworkId = "mainnet",
+): Promise<string> {
+  const r = await rpc(
+    "query",
+    {
+      request_type: "call_function",
+      block_id: block,
+      account_id: account,
+      method_name: method,
+      args_base64: btoa(JSON.stringify(args)),
+    },
+    network,
+  );
   if (r.error) throw new Error(r.error);
   return new TextDecoder().decode(new Uint8Array(r.result));
 }
@@ -86,14 +97,15 @@ export async function checkToken(
   adapter: Adapter,
   token: string,
   block?: number,
+  network: NetworkId = "mainnet",
 ): Promise<Pick<Reading, "owed" | "held" | "status" | "shortfall" | "error" | "block" | "live">> {
-  const b = block ?? (await finalBlock());
+  const b = block ?? (await finalBlock(network));
   try {
     const [owedRaw, heldRaw] = await Promise.all([
       adapter === "nep245"
-        ? view(target, "mt_supply", { token_id: `nep141:${token}` }, b)
-        : view(target, "get_asset", { token_id: token }, b),
-      view(token, "ft_balance_of", { account_id: target }, b),
+        ? view(target, "mt_supply", { token_id: `nep141:${token}` }, b, network)
+        : view(target, "get_asset", { token_id: token }, b, network),
+      view(token, "ft_balance_of", { account_id: target }, b, network),
     ]);
     const owed = adapter === "nep245" ? parseU128(owedRaw) : burrowOwed(owedRaw);
     const held = parseU128(heldRaw);
@@ -113,9 +125,13 @@ export async function checkToken(
   }
 }
 
-export async function tokenMeta(token: string, block: number): Promise<{ symbol?: string; decimals?: number }> {
+export async function tokenMeta(
+  token: string,
+  block: number,
+  network: NetworkId = "mainnet",
+): Promise<{ symbol?: string; decimals?: number }> {
   try {
-    const m = JSON.parse(await view(token, "ft_metadata", {}, block));
+    const m = JSON.parse(await view(token, "ft_metadata", {}, block, network));
     return { symbol: m.symbol, decimals: m.decimals };
   } catch {
     return {};
@@ -146,4 +162,20 @@ export function coverage(owed: string | null, held: string | null): string {
   if (o === 0n) return held === "0" ? "—" : "∞";
   const bps = (BigInt(held) * 1_000_000n) / o; // millionths
   return (Number(bps) / 10_000).toFixed(3) + "%";
+}
+
+/** A view call at the latest final block, parsed as JSON. */
+export async function viewJson<T = unknown>(network: NetworkId, account: string, method: string, args: object): Promise<T> {
+  const block = await finalBlock(network);
+  return JSON.parse(await view(account, method, args, block, network)) as T;
+}
+
+/** NEAR balance of an account, in NEAR (number, for display). */
+export async function nearBalance(network: NetworkId, account: string): Promise<number | null> {
+  try {
+    const r = await rpc("query", { request_type: "view_account", finality: "final", account_id: account }, network);
+    return Number(BigInt(r.amount) / 10n ** 20n) / 10_000;
+  } catch {
+    return null;
+  }
 }

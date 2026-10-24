@@ -5,4 +5,7 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   base: "./",
   plugins: [react()],
+  // Wallet SDKs import Node's `buffer`; use the browser polyfill instead.
+  resolve: { alias: { buffer: "buffer/" } },
+  define: { global: "globalThis" },
 });
