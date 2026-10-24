@@ -41,7 +41,7 @@ export const PILLARS = [
     tag: "Verify",
     title: "Checker",
     kind: "On-chain contract",
-    body: "Anyone can record, on-chain, whether a protocol holds what it owes, read from the protocol's and the token's own views. No trusted reporter. Live on testnet; mainnet next.",
+    body: "Anyone can record, on-chain, whether a protocol holds what it owes, read from the protocol's and the token's own views. No trusted reporter. Live on NEAR testnet.",
   },
 ];
 

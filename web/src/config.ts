@@ -1,4 +1,4 @@
-// Where things live. The checker runs on testnet today; mainnet comes next.
+// Where things live. The checker contract runs on testnet; mainnet protocols are read-only.
 
 export const REPO = "https://github.com/rohan911438/Backed";
 

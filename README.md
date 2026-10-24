@@ -8,7 +8,8 @@ It ships as a Rust library for contracts, a chaos-testing harness that replays t
 
 | | |
 |---|---|
-| **Status** | Working end to end. Checker live on **testnet**; mainnet deploy next. |
+| **Status** | Working end to end on **NEAR testnet** (checker contract + wallet-signed attestations). Mainnet protocols are read live, read-only. |
+| **Live app** | **<https://backed-near.vercel.app>** (connect a testnet wallet to sign attestations) |
 | **Checker contract** | [`simplekilt7490.testnet`](https://testnet.nearblocks.io/address/simplekilt7490.testnet) |
 | **Replays** | 3 of 3 attacks break the naive vault; 3 of 3 are blocked by the Backed vault |
 | **Live finding** | 362 of 370 NEP-141 tokens in `intents.near` fully backed; 3 under-backed |
@@ -137,11 +138,11 @@ The checker runs at [`simplekilt7490.testnet`](https://testnet.nearblocks.io/add
 | `wrap.testnet` | 1,252.78 NEAR | 20,115.29 NEAR | Healthy | [`GPi36PvK…`](https://testnet.nearblocks.io/txns/GPi36PvKK5sw95BDVa6f2tLoXXWRjRCXyEEgZbm2wHuG) |
 | `usdc.fakes.testnet` | 103,906.634556 | 103,906.635640 | Healthy | [`5MGdqCBQ…`](https://testnet.nearblocks.io/txns/5MGdqCBQ296W7dyFogHrXKM6CFGDQLFBjxBoXRsseycE) |
 
-Mainnet deployment (with the Intents and Burrow adapters) is next.
+The checker is deployed on testnet for this submission. The same contract and `examples/live.rs` deploy to mainnet unchanged, with the Intents (`Nep245Ledger`) and Burrow adapters.
 
 ## The web app
 
-`cd web && npm install && npm run dev` → <http://localhost:5173>. It's a static app with no backend: it reads NEAR RPC straight from the browser.
+**Live: <https://backed-near.vercel.app>** (Vercel). Locally: `cd web && npm install && npm run dev` → <http://localhost:5173>. It's a static app with no backend: it reads NEAR RPC straight from the browser.
 
 | Page | Route | What it does |
 |---|---|---|
@@ -293,7 +294,7 @@ cli/                    backed CLI: check, scan-intents, chaos, attest
 web/                    Vite + React app: home, live backing, checker (wallet), replays, build
 skill/SKILL.md          instructions for AI coding agents
 scripts/build-wasm.sh   builds every contract with cargo-near
-.github/workflows/      CI (unit tests, sandbox replays, web build); Pages deploy (manual until the repo is public)
+.github/workflows/      CI (unit tests, sandbox replays, web build); Pages deploy (manual; the live site is on Vercel)
 Idea/                   design documents, incl. user workflows
 ```
 
