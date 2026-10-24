@@ -18,6 +18,8 @@ use near_sdk::store::LookupMap;
 use near_sdk::{env, is_promise_success, near, AccountId, Gas, NearToken, PanicOnDefault, Promise, PromiseOrValue};
 
 const GAS: Gas = Gas::from_tgas(20);
+/// Gas for the venue call: it forwards an `ft_transfer_call` of the output.
+const GAS_VENUE: Gas = Gas::from_tgas(100);
 
 #[near(contract_state)]
 #[derive(PanicOnDefault)]
@@ -111,9 +113,9 @@ impl NaiveVault {
         Promise::new(venue)
             .function_call(
                 "swap".to_string(),
-                format!("{{\"token_in\":\"{token_in}\",\"token_out\":\"{token_out}\",\"amount_in\":\"{}\"}}", amount_in.0).into_bytes(),
+                format!("{{\"token_in\":\"{token_in}\",\"token_out\":\"{token_out}\",\"amount_in\":\"{}\",\"owner\":\"{owner}\"}}", amount_in.0).into_bytes(),
                 NearToken::from_yoctonear(0),
-                GAS,
+                GAS_VENUE,
             )
             .then(Self::ext(env::current_account_id()).with_static_gas(GAS).on_swap(token_out, owner, claimed_min_out))
     }

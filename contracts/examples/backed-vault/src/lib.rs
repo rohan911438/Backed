@@ -2,8 +2,9 @@
 //!
 //! 1. Notify deposits: refunds are capped and finalizing never panics.
 //! 2. Withdraw resolve is `#[private]`.
-//! 3. Swaps credit only what the venue's own result says, and `reconcile`
-//!    catches a venue that reports more than it sent.
+//! 3. Swaps credit only output the token contract delivers (`ft_on_transfer`
+//!    with msg `swap_out:<owner>`). What the venue *reports* is ignored, so a
+//!    lying venue can't inflate balances. `reconcile` checks books vs reality.
 //! 4. `ft_on_transfer` only accepts registered tokens.
 
 use backed::{Claimed, Delivered, Ledger, PendingIn, PendingOut, ReconcileTicket, Solvency};
@@ -13,6 +14,8 @@ use near_sdk::{env, is_promise_success, near, require, AccountId, Gas, NearToken
 const GAS: Gas = Gas::from_tgas(20);
 /// Gas the resolve callbacks need; checked at entry so they can't run out.
 const GAS_RESOLVE: Gas = Gas::from_tgas(15);
+/// Gas for the venue call: it forwards an `ft_transfer_call` of the output.
+const GAS_VENUE: Gas = Gas::from_tgas(100);
 
 #[near(contract_state)]
 #[derive(PanicOnDefault)]
@@ -66,7 +69,14 @@ impl BackedVault {
                     .then(Self::ext(env::current_account_id()).with_static_gas(GAS_RESOLVE).resolve_deposit(pending)),
             );
         }
-        self.ledger.credit(&token, &sender_id, delivered);
+        // Swap output from a venue is credited to the swap's owner. The token
+        // contract vouches for the amount, so a lying venue can't inflate it.
+        let owner = match msg.strip_prefix("swap_out:").map(|o| o.parse::<AccountId>()) {
+            Some(Ok(o)) => o,
+            Some(Err(_)) => return PromiseOrValue::Value(amount),
+            None => sender_id,
+        };
+        self.ledger.credit(&token, &owner, delivered);
         PromiseOrValue::Value(U128(0))
     }
 
@@ -107,24 +117,18 @@ impl BackedVault {
         Promise::new(venue)
             .function_call(
                 "swap".to_string(),
-                format!("{{\"token_in\":\"{token_in}\",\"token_out\":\"{token_out}\",\"amount_in\":\"{}\"}}", amount_in.0).into_bytes(),
+                format!("{{\"token_in\":\"{token_in}\",\"token_out\":\"{token_out}\",\"amount_in\":\"{}\",\"owner\":\"{owner}\"}}", amount_in.0).into_bytes(),
                 NearToken::from_yoctonear(0),
-                GAS,
+                GAS_VENUE,
             )
-            .then(Self::ext(env::current_account_id()).with_static_gas(GAS_RESOLVE).on_swap(pending, token_out))
+            .then(Self::ext(env::current_account_id()).with_static_gas(GAS_RESOLVE).on_swap(pending))
     }
 
-    /// Credits only the amount the venue's own result reports. There is no
-    /// way to credit a caller-supplied minimum: it isn't a `Delivered`.
+    /// Settles the input side only. Output is credited when the token delivers
+    /// it (see `ft_on_transfer`), never from what the venue or caller claims.
     #[private]
-    pub fn on_swap(&mut self, pending: PendingOut, token_out: AccountId) {
-        match Delivered::from_callback_u128(0) {
-            Some(out) => {
-                self.ledger.settle_withdraw(&pending, true);
-                self.ledger.credit(&token_out, &pending.owner, out);
-            }
-            None => self.ledger.settle_withdraw(&pending, false),
-        }
+    pub fn on_swap(&mut self, pending: PendingOut) {
+        self.ledger.settle_withdraw(&pending, is_promise_success());
     }
 
     /// Compares the books with the token's real balance. Anyone can call.

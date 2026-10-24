@@ -42,13 +42,13 @@ const PILLARS = [
     tag: "Prove",
     title: "backed-chaos",
     kind: "Test harness",
-    body: "Fails every async step on purpose: callbacks out of gas, log-limit overflow, absurd refunds, direct callback calls, lying venues, fee and burn tokens. Replays all three 2026 incidents.",
+    body: "Fails every async step on purpose: callbacks out of gas, log-limit overflow, absurd refunds, direct callback calls, lying venues, fee and burn tokens. Replays all three 2026 incidents on a local NEAR sandbox: the naive vault loses money, the Backed vault blocks every attack.",
   },
   {
     tag: "Verify",
     title: "Checker",
-    kind: "Mainnet contract",
-    body: "Anyone can record, on-chain, whether a protocol holds what it owes. Owed and held come from the protocol's and the token's own views. No trusted reporter.",
+    kind: "On-chain contract",
+    body: "Anyone can record, on-chain, whether a protocol holds what it owes. Owed and held come from the protocol's and the token's own views. No trusted reporter. Live on testnet (simplekilt7490.testnet); mainnet next.",
   },
 ];
 

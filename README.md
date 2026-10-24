@@ -4,7 +4,7 @@
 
 Backed is a Rust library, a chaos-testing harness and an on-chain checker. Together they prevent, test for and detect one NEAR-specific bug family: a contract's internal ledger drifting away from the tokens it actually holds.
 
-> **Status: early build.** Working today: the `backed` library, the checker contract (not yet deployed), example vaults, the chaos scenario catalog, the `backed` CLI against mainnet, and the web page. Still to build: the sandbox chaos runner, mainnet deployment and the agent skill. Design: [`Idea/`](Idea/README.md). Sections marked *(planned)* aren't built yet.
+> **Status: working end to end on testnet.** Built: the `backed` library, the sandbox chaos runner with three incident replays, example vaults, the checker contract (**live on testnet** at [`simplekilt7490.testnet`](https://testnet.nearblocks.io/address/simplekilt7490.testnet), recording real attestations against Rhea/Burrow), the `backed` CLI, the web page and the agent skill. Next: mainnet deployment. Design: [`Idea/`](Idea/README.md).
 
 ---
 
@@ -27,8 +27,8 @@ On Ethereum a transaction is all-or-nothing, so this family barely exists there.
 | Part | Form | Job |
 |---|---|---|
 | `backed` | Rust crate for near-sdk contracts | **Prevent.** Balances can only grow from verified amounts; refund callbacks are private, capped and can't fail; `owed ≤ held` is checked on every state change. |
-| `backed-chaos` | Rust test harness (NEAR sandbox) | **Prove.** Fails every async step on purpose (out of gas, log-limit overflow, absurd refunds, lying venues, malicious tokens) and checks the books after every receipt. Replays all three 2026 incidents. |
-| Backing checker | Contract on NEAR mainnet | **Verify.** Anyone can record on-chain whether a protocol holds what it owes, read straight from the protocol's and token's own views. No trusted reporter. |
+| `backed-chaos` | Rust test harness (NEAR sandbox) | **Prove.** Fails every async step on purpose (out of gas, log-limit overflow, absurd refunds, lying venues, malicious tokens) and checks the books after every step. Replays all three 2026 incidents on a local NEAR sandbox. |
+| Backing checker | Contract on NEAR (live on testnet; mainnet next) | **Verify.** Anyone can record on-chain whether a protocol holds what it owes, read straight from the protocol's and token's own views. No trusted reporter. |
 | `backed` CLI, web page, agent skill | Rust binary, static page, `SKILL.md` | **Use.** Check any protocol in one command, see live backing, and have AI coding agents write NEAR contracts with Backed by default. |
 
 Architecture: [`Idea/03-architecture.md`](Idea/03-architecture.md)
@@ -48,25 +48,39 @@ Rust builds need Linux, macOS or WSL (near-sdk tests don't build with the Window
 
 | Do | See |
 |---|---|
-| `cargo test -p backed -p backed-checker -p backed-chaos -p naive-vault -p backed-vault` | 32 passing tests, incl. an async timing simulation (200 runs, zero false alarms) and Rhea lending math on a real mainnet fixture |
+| `cargo test -p backed -p backed-checker -p backed-chaos -p naive-vault -p backed-vault` | 34 passing tests, incl. an async timing simulation (200 runs, zero false alarms) and Rhea lending math on a real mainnet fixture |
 | `cargo run -p backed-cli -- check intents.near --token usdt.tether-token.near` | Owed vs held for that token, read at one block height |
 | `cargo run -p backed-cli -- scan-intents` | Every NEP-141 token in NEAR Intents: backed, under-backed, unreadable |
 | `cd web && npm install && npm run dev` | The web page: token sphere, live explorer, a Verify button per row |
 | `cd contracts/checker && cargo near build non-reproducible-wasm` | The checker contract wasm (156KB) |
-| *(planned)* `cargo test replay_` | Three replays in the NEAR sandbox: naive vault loses money, Backed vault doesn't |
+| `scripts/build-wasm.sh && cargo test -p backed-chaos --features sandbox replay_ -- --nocapture` | Three incident replays on a real local NEAR sandbox: the naive vault ends up owing more than it holds and the attacker profits; the Backed vault blocks every attack (zero shortfall at every step) |
+| `cargo run -p backed-cli --features chaos -- chaos` | The same replays as a step-by-step report (`--scenario rhea`, `--vault backed`, `--json`) |
+
+## Live on testnet
+
+The checker contract runs on NEAR testnet at `simplekilt7490.testnet`, with the Burrow (Rhea lending) adapter for `contract.1638481328.burrow.testnet`. Real attestations, 2026-10-24:
+
+| Token | Owed | Held | State | Tx |
+|---|---|---|---|---|
+| `wrap.testnet` | 1,252.78 NEAR | 20,115.29 NEAR | Healthy | [`GPi36PvK…`](https://testnet.nearblocks.io/txns/GPi36PvKK5sw95BDVa6f2tLoXXWRjRCXyEEgZbm2wHuG) |
+| `usdc.fakes.testnet` | 103,906.634556 | 103,906.635640 | Healthy | [`5MGdqCBQ…`](https://testnet.nearblocks.io/txns/5MGdqCBQ296W7dyFogHrXKM6CFGDQLFBjxBoXRsseycE) |
+
+Reproduce: `cargo run -p backed-chaos --features sandbox --example live -- testnet <your-account> attest contract.1638481328.burrow.testnet wrap.testnet` (key read from `~/.near-credentials/testnet/`).
 
 ## Repository layout
 
 ```
 crates/backed/          library: Ledger, Delivered/Claimed, capped refunds, LogBudget, reconcile
-crates/backed-chaos/    failure catalog F1–F8, invariant oracle, three incident scenarios (sandbox runner planned)
+crates/backed-chaos/    failure catalog F1–F8, invariant oracle, three incident replays, NEAR sandbox runner, live deploy tool (examples/live.rs)
 contracts/checker/      backing checker contract (Intents, Rhea and Backed-standard adapters)
 contracts/examples/     naive-vault (the three 2026 bug patterns, on purpose) and backed-vault
-cli/                    backed CLI: check, scan-intents, attest
+contracts/helpers/      test-token, evil-receiver (attacker), lying-venue: used by the replays only
+cli/                    backed CLI: check, scan-intents, attest, chaos
 web/                    static web page (Vite + React), reads NEAR RPC from the browser
 .github/workflows/      CI, and Pages deploy with a fresh scan every 30 minutes
 Idea/                   design documents, incl. user workflows
-skill/SKILL.md          (planned) instructions for AI coding agents
+scripts/build-wasm.sh   builds every contract with cargo-near
+skill/SKILL.md          instructions for AI coding agents (Claude Code, Codex, ...)
 ```
 
 ## What Backed does not do

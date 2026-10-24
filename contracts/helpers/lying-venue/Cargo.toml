@@ -1,0 +1,13 @@
+[package]
+name = "lying-venue"
+description = "Test helper for backed-chaos replays. Never deploy with real funds."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+near-sdk = { workspace = true }

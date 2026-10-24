@@ -3,18 +3,25 @@
 
 use crate::Injection;
 
+/// Which test token a step uses. The Rhea replay swaps A for B.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Tok {
+    A,
+    B,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Action {
     /// User deposits through the token's `ft_transfer_call`.
-    Deposit { amount: u128, msg: String },
+    Deposit { token: Tok, amount: u128, msg: String },
     /// User withdraws.
-    Withdraw { amount: u128 },
+    Withdraw { token: Tok, amount: u128 },
     /// Attacker chains a failing call into the vault's withdraw resolver.
-    CallResolverDirectly { amount: u128 },
-    /// User swaps through a venue.
+    CallResolverDirectly { token: Tok, amount: u128 },
+    /// User swaps A for B through the lying venue.
     Swap { amount_in: u128, claimed_min_out: u128 },
     /// Anyone calls `reconcile(token)` (Backed contracts only).
-    Reconcile,
+    Reconcile { token: Tok },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -32,6 +39,10 @@ pub struct Scenario {
     pub steps: Vec<Step>,
 }
 
+fn step(actor: &'static str, action: Action, injection: Option<Injection>, note: &'static str) -> Step {
+    Step { actor, action, injection, note }
+}
+
 /// NEAR Intents, Oct 2026: a deposit with a notify call; the receiver asks for
 /// an absurd refund so the resolve fails; the token refunds the whole deposit
 /// but the vault keeps the credit; the attacker withdraws it.
@@ -40,14 +51,14 @@ pub fn intents_log_limit() -> Scenario {
         name: "replay_intents_log_limit",
         incident: "NEAR Intents, 2026-10-01, $3.8M",
         steps: vec![
-            Step { actor: "lp", action: Action::Deposit { amount: 1_000, msg: String::new() }, injection: None, note: "honest liquidity in the vault" },
-            Step {
-                actor: "attacker",
-                action: Action::Deposit { amount: 100, msg: "notify:evil-receiver".into() },
-                injection: Some(Injection::AbsurdRefund),
-                note: "receiver requests a refund far above the deposit; naive resolve fails",
-            },
-            Step { actor: "attacker", action: Action::Withdraw { amount: 100 }, injection: None, note: "withdraw the credit the token already refunded" },
+            step("lp", Action::Deposit { token: Tok::A, amount: 1_000, msg: String::new() }, None, "honest liquidity in the vault"),
+            step(
+                "attacker",
+                Action::Deposit { token: Tok::A, amount: 100, msg: "notify:evil".into() },
+                Some(Injection::AbsurdRefund),
+                "notify receiver asks for an absurd refund (u128::MAX)",
+            ),
+            step("attacker", Action::Withdraw { token: Tok::A, amount: 100 }, None, "withdraw the credit the token already refunded"),
         ],
     }
 }
@@ -58,16 +69,16 @@ pub fn sweat_public_resolver() -> Scenario {
         name: "replay_sweat_public_resolver",
         incident: "SWEAT/HOT zero-day (Fireblocks)",
         steps: vec![
-            Step { actor: "lp", action: Action::Deposit { amount: 1_000, msg: String::new() }, injection: None, note: "honest liquidity" },
-            Step { actor: "attacker", action: Action::Deposit { amount: 100, msg: String::new() }, injection: None, note: "attacker deposits" },
-            Step { actor: "attacker", action: Action::Withdraw { amount: 100 }, injection: None, note: "real withdrawal succeeds" },
-            Step {
-                actor: "attacker",
-                action: Action::CallResolverDirectly { amount: 100 },
-                injection: Some(Injection::DirectCallbackCall),
-                note: "chain a failing call into resolve_withdraw: naive re-credits",
-            },
-            Step { actor: "attacker", action: Action::Withdraw { amount: 100 }, injection: None, note: "withdraw again" },
+            step("lp", Action::Deposit { token: Tok::A, amount: 1_000, msg: String::new() }, None, "honest liquidity"),
+            step("attacker", Action::Deposit { token: Tok::A, amount: 100, msg: String::new() }, None, "attacker deposits"),
+            step("attacker", Action::Withdraw { token: Tok::A, amount: 100 }, None, "real withdrawal succeeds"),
+            step(
+                "attacker",
+                Action::CallResolverDirectly { token: Tok::A, amount: 100 },
+                Some(Injection::DirectCallbackCall),
+                "chain a failing call into the vault's resolve_withdraw",
+            ),
+            step("attacker", Action::Withdraw { token: Tok::A, amount: 100 }, None, "withdraw again"),
         ],
     }
 }
@@ -79,16 +90,16 @@ pub fn rhea_claimed_credit() -> Scenario {
         name: "replay_rhea_claimed_credit",
         incident: "Rhea Finance, 2026-04-16, $18.4M",
         steps: vec![
-            Step { actor: "lp", action: Action::Deposit { amount: 1_000, msg: String::new() }, injection: None, note: "honest liquidity (token_out side)" },
-            Step { actor: "attacker", action: Action::Deposit { amount: 100, msg: String::new() }, injection: None, note: "attacker deposits token_in" },
-            Step {
-                actor: "attacker",
-                action: Action::Swap { amount_in: 100, claimed_min_out: 900 },
-                injection: Some(Injection::LyingVenue),
-                note: "venue delivers 1 unit; naive credits the claimed 900",
-            },
-            Step { actor: "attacker", action: Action::Withdraw { amount: 900 }, injection: None, note: "drain honest liquidity" },
-            Step { actor: "anyone", action: Action::Reconcile, injection: None, note: "Backed: books vs reality" },
+            step("lp", Action::Deposit { token: Tok::B, amount: 1_000, msg: String::new() }, None, "honest liquidity (token_out side)"),
+            step("attacker", Action::Deposit { token: Tok::A, amount: 100, msg: String::new() }, None, "attacker deposits token_in"),
+            step(
+                "attacker",
+                Action::Swap { amount_in: 100, claimed_min_out: 900 },
+                Some(Injection::LyingVenue),
+                "swap: venue delivers 1 unit, reports 900, route claims 900",
+            ),
+            step("attacker", Action::Withdraw { token: Tok::B, amount: 900 }, None, "drain honest liquidity"),
+            step("anyone", Action::Reconcile { token: Tok::B }, None, "reconcile: books vs real balance"),
         ],
     }
 }

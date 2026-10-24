@@ -17,6 +17,23 @@ jobs:
       - name: Build CLI
         run: cargo build -p backed-cli
 
+  replays:
+    # The three 2026 incident replays on a real local NEAR sandbox.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: cargo-bins/cargo-binstall@main
+      - name: Install cargo-near
+        run: cargo binstall --no-confirm cargo-near@0.22.0
+      - name: Build contracts
+        run: scripts/build-wasm.sh
+      - name: Replays (naive loses, backed holds)
+        run: cargo test -p backed-chaos --features sandbox --test replays -- --nocapture --test-threads=1
+
   web:
     runs-on: ubuntu-latest
     defaults:

@@ -6,6 +6,9 @@ members = [
     "contracts/checker",
     "contracts/examples/naive-vault",
     "contracts/examples/backed-vault",
+    "contracts/helpers/test-token",
+    "contracts/helpers/evil-receiver",
+    "contracts/helpers/lying-venue",
     "cli",
 ]
 

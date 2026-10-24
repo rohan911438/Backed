@@ -52,6 +52,16 @@ enum Cmd {
         #[arg(long)]
         metadata: bool,
     },
+    /// Replay the 2026 NEAR incidents on a local sandbox: naive vs backed vault.
+    /// Needs the `chaos` feature and the wasm files (scripts/build-wasm.sh).
+    Chaos {
+        /// Only run scenarios whose name contains this (intents, sweat, rhea).
+        #[arg(long)]
+        scenario: Option<String>,
+        /// Which vault to attack: naive, backed or both.
+        #[arg(long, default_value = "both")]
+        vault: String,
+    },
     /// Print the near-cli command that records an attestation on-chain.
     Attest {
         target: String,
@@ -233,6 +243,7 @@ fn main() -> Result<()> {
                 }
             }
         }
+        Cmd::Chaos { scenario, vault } => chaos(scenario.as_deref(), &vault, cli.json)?,
         Cmd::Attest { target, token, checker, signer } => {
             println!("Records an on-chain attestation (first time per pair: attach 0.005 NEAR for storage):\n");
             println!(
@@ -241,4 +252,56 @@ fn main() -> Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(feature = "chaos")]
+fn chaos(filter: Option<&str>, vault: &str, as_json: bool) -> Result<()> {
+    use backed_chaos::replays;
+    use backed_chaos::sandbox::{render, replay, VaultKind};
+    let kinds = match vault {
+        "naive" => vec![VaultKind::Naive],
+        "backed" => vec![VaultKind::Backed],
+        "both" => vec![VaultKind::Naive, VaultKind::Backed],
+        other => return Err(anyhow!("unknown vault {other} (naive | backed | both)")),
+    };
+    let scenarios: Vec<_> = replays::all().into_iter().filter(|s| filter.is_none_or(|f| s.name.contains(f))).collect();
+    if scenarios.is_empty() {
+        return Err(anyhow!("no scenario matches; try intents, sweat or rhea"));
+    }
+    let mut results = Vec::new();
+    let mut backed_broke = false;
+    for sc in &scenarios {
+        for &kind in &kinds {
+            if !as_json {
+                eprintln!("running {} against the {:?} vault (fresh sandbox)...", sc.name, kind);
+            }
+            let r = replay(sc, kind)?;
+            backed_broke |= kind == VaultKind::Backed && r.broke();
+            if as_json {
+                results.push(json!({
+                    "scenario": sc.name, "incident": sc.incident, "vault": format!("{kind:?}").to_lowercase(),
+                    "verdict": if r.broke() { "broken" } else { "safe" },
+                    "attacker_gain": r.attacker_gain.to_string(),
+                    "shortfalls": r.report.findings.iter().map(|f| json!({
+                        "step": f.step, "token": f.snapshot.token, "owed": f.snapshot.owed.to_string(),
+                        "held": f.snapshot.held.to_string(), "shortfall": f.shortfall.to_string()
+                    })).collect::<Vec<_>>(),
+                }));
+            } else {
+                println!("{}", render(sc, &r));
+            }
+        }
+    }
+    if as_json {
+        println!("{}", serde_json::to_string_pretty(&results)?);
+    }
+    if backed_broke {
+        return Err(anyhow!("a backed vault broke the invariant"));
+    }
+    Ok(())
+}
+
+#[cfg(not(feature = "chaos"))]
+fn chaos(_: Option<&str>, _: &str, _: bool) -> Result<()> {
+    Err(anyhow!("this build has no sandbox runner; reinstall with: cargo install --path cli --features chaos (Linux, macOS or WSL)"))
 }

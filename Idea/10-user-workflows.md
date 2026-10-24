@@ -13,8 +13,8 @@ Who touches Backed, in what order, and what they see. Each flow notes what exist
 | 3 | Withdraw: `ledger.debit_for_withdraw(...)` → `ft_transfer` → private `resolve_withdraw` → `ledger.settle_withdraw(...)` | Failed transfers re-credit; `owed ≤ held` checked on every change | ✅ |
 | 4 | Follow-up deposits: `credit_with_followup` → notify → private resolve → `finalize_followup` | Refunds capped; the resolve can't panic | ✅ |
 | 5 | Expose `backed_solvency(token)` and a public `reconcile(token)` | Anyone can check the books against the token's real balance | ✅ |
-| 6 | Run `backed chaos ./contract.wasm` in CI | Findings list: injection, step, shortfall | 🔨 sandbox runner (needs WSL/Linux) |
-| 7 | Deploy, then `register_self` on the checker | Contract shows up on the web page | 🔨 checker not deployed yet |
+| 6 | Run `backed chaos` (or `cargo test -p backed-chaos --features sandbox replay_`) in CI | Step-by-step report: injection, owed vs held, shortfall, attacker gain | ✅ built-in replays; 🔨 plugging in your own contract (add a `VaultKind`) |
+| 7 | Deploy, then `register_self` on the checker | Contract shows up on the web page | ✅ checker live on testnet; 🔨 mainnet |
 
 **Where they get stuck, and the answer:**
 - "My callback isn't marked private in tests." `#[private]` is only enforced in the compiled wasm; `backed-chaos` F5 tests it in the sandbox.
@@ -30,7 +30,7 @@ Who touches Backed, in what order, and what they see. Each flow notes what exist
 | 2 | Open the web page → Live | Token-by-token owed vs held at one block; issues sorted first | ✅ |
 | 3 | Press **Verify** on any row | Fresh same-block check from the browser at the current block | ✅ |
 | 4 | Look at an under-backed token | Coverage %, shortfall, block; note that burns or fees can explain small tokens | ✅ (3 found today) |
-| 5 | Want it on-chain? Anyone runs `attest(target, token)` | `Suspected` → `Confirmed` after ≥30 blocks; event log | 🔨 deploy checker |
+| 5 | Want it on-chain? Anyone runs `attest(target, token)` | `Suspected` → `Confirmed` after ≥30 blocks; event log | ✅ testnet (real Burrow attestations); 🔨 mainnet |
 | 6 | Adopt the standard later | Implement `backed_solvency` → no custom adapter needed | ✅ spec, 🔨 NEP text |
 
 ## 3. AI agent, wallet or user about to deposit
@@ -41,16 +41,16 @@ Who touches Backed, in what order, and what they see. Each flow notes what exist
 |---|---|---|---|
 | 1 | `backed check <protocol> --token <token>` | `backed` / `UNDER-BACKED` with owed and held at one block | ✅ |
 | 2 | Or `--json` for machines | Structured result for an agent's tool call | ✅ |
-| 3 | Or read `get_status(target, token)` on the checker | On-chain state, usable by other contracts | 🔨 deploy |
+| 3 | Or read `get_status(target, token)` on the checker | On-chain state, usable by other contracts | ✅ testnet; 🔨 mainnet |
 | 4 | Rule | Never deposit into a `Confirmed` breach | ✅ documented |
 
 ## 4. AI coding agent (Claude Code, Codex)
 
 | Step | Action | Status |
 |---|---|---|
-| 1 | Reads `skill/SKILL.md` when writing a NEAR contract that holds tokens | 🔨 |
+| 1 | Reads `skill/SKILL.md` when writing a NEAR contract that holds tokens | ✅ |
 | 2 | Uses `backed` building blocks; never credits caller-supplied numbers | ✅ library ready |
-| 3 | Runs `backed chaos` before finishing | 🔨 |
+| 3 | Runs `backed chaos` before finishing | ✅ |
 
 ## 5. Hackathon judge (human or AI)
 
@@ -60,7 +60,7 @@ Who touches Backed, in what order, and what they see. Each flow notes what exist
 | 2 | `cargo test -p backed -p backed-checker -p backed-chaos -p naive-vault -p backed-vault` | 32 passing tests, incl. an async timing simulation with zero false alarms and Rhea math on a real mainnet fixture |
 | 3 | `backed scan-intents` | Live: 370 tokens, 362 backed, 3 under-backed |
 | 4 | Open the web page | Live sphere of tokens, explorer, Verify buttons |
-| 5 | 🔨 `cargo test replay_` in the sandbox | Naive vault loses money, Backed vault doesn't |
+| 5 | ✅ `cargo test -p backed-chaos --features sandbox replay_` in the sandbox | Naive vault loses money, Backed vault doesn't |
 
 ## Web page map
 1. **Hero:** headline, live badge (`intents.near · N of M tokens backed`), token sphere (one dot per token, colored by status), stats.

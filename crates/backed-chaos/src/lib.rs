@@ -9,8 +9,9 @@
 //! - [`check_backing`]: the invariant oracle over one snapshot;
 //! - [`replays`]: the three 2026 incident scenarios as step lists.
 //!
-//! A [`Chain`] implementation runs the steps. The NEAR sandbox runner
-//! (near-sandbox, Linux/WSL) implements it; see `Idea/03-architecture.md`.
+//! A [`Chain`] implementation runs the steps. [`sandbox::Sandbox`] (feature
+//! `sandbox`, Linux/macOS/WSL) deploys real contracts into a local NEAR
+//! sandbox and implements it.
 
 pub mod replays;
 
@@ -96,25 +97,48 @@ pub fn check_backing(s: &Snapshot) -> Option<u128> {
     (s.owed > s.held).then(|| s.owed - s.held)
 }
 
+/// What happened when one step ran.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StepOutcome {
+    /// Did the step's transaction (and every receipt in it) succeed?
+    pub ok: bool,
+    /// The first failure message, when `ok` is false.
+    pub error: Option<String>,
+    /// Books vs reality after the step, one per token involved.
+    pub snapshots: Vec<Snapshot>,
+}
+
 /// What a runner must provide. The sandbox runner implements this.
 pub trait Chain {
     type Error: std::fmt::Debug;
-    /// Executes one step and returns snapshots taken after each receipt.
-    fn run_step(&mut self, step: &replays::Step) -> Result<Vec<Snapshot>, Self::Error>;
+    /// Executes one step and reads owed vs held once its receipts finish.
+    fn run_step(&mut self, step: &replays::Step) -> Result<StepOutcome, Self::Error>;
+}
+
+/// The result of one scenario run.
+#[derive(Debug, Clone, Default)]
+pub struct Report {
+    pub outcomes: Vec<StepOutcome>,
+    pub findings: Vec<Finding>,
 }
 
 /// Runs a scenario and collects every point where the invariant broke.
-pub fn run<C: Chain>(chain: &mut C, scenario: &replays::Scenario) -> Result<Vec<Finding>, C::Error> {
-    let mut findings = Vec::new();
+pub fn run<C: Chain>(chain: &mut C, scenario: &replays::Scenario) -> Result<Report, C::Error> {
+    let mut report = Report::default();
     for (i, step) in scenario.steps.iter().enumerate() {
-        for snap in chain.run_step(step)? {
-            if let Some(shortfall) = check_backing(&snap) {
-                findings.push(Finding { step: i, injection: step.injection, snapshot: snap, shortfall });
+        let outcome = chain.run_step(step)?;
+        for snap in &outcome.snapshots {
+            if let Some(shortfall) = check_backing(snap) {
+                report.findings.push(Finding { step: i, injection: step.injection, snapshot: snap.clone(), shortfall });
             }
         }
+        report.outcomes.push(outcome);
     }
-    Ok(findings)
+    Ok(report)
 }
+
+#[cfg(feature = "sandbox")]
+pub mod sandbox;
 
 #[cfg(test)]
 mod tests {
@@ -140,8 +164,9 @@ mod tests {
     struct Scripted(Vec<Vec<Snapshot>>);
     impl Chain for Scripted {
         type Error = ();
-        fn run_step(&mut self, _: &replays::Step) -> Result<Vec<Snapshot>, ()> {
-            Ok(if self.0.is_empty() { vec![] } else { self.0.remove(0) })
+        fn run_step(&mut self, _: &replays::Step) -> Result<StepOutcome, ()> {
+            let snapshots = if self.0.is_empty() { vec![] } else { self.0.remove(0) };
+            Ok(StepOutcome { ok: true, error: None, snapshots })
         }
     }
 
@@ -150,7 +175,9 @@ mod tests {
         let sc = replays::intents_log_limit();
         let snap = |owed, held| Snapshot { block: 1, token: "tok".into(), owed, held };
         let mut chain = Scripted(vec![vec![snap(0, 0)], vec![snap(100, 100)], vec![snap(100, 0)]]);
-        let f = run(&mut chain, &sc).unwrap();
+        let r = run(&mut chain, &sc).unwrap();
+        assert_eq!(r.outcomes.len(), 3);
+        let f = r.findings;
         assert_eq!(f.len(), 1);
         assert_eq!(f[0].shortfall, 100);
         assert_eq!(f[0].step, 2);

@@ -9,7 +9,13 @@ license.workspace = true
 name = "backed"
 path = "src/main.rs"
 
+[features]
+# `backed chaos`: replays the 2026 incidents on a local NEAR sandbox
+# (Linux, macOS or WSL). `cargo install --path cli --features chaos`
+chaos = ["dep:backed-chaos"]
+
 [dependencies]
+backed-chaos = { path = "../crates/backed-chaos", features = ["sandbox"], optional = true }
 backed-checker = { path = "../contracts/checker" }
 # lets near-sdk (pulled in by the checker's logic) compile outside a contract
 near-sdk = { workspace = true, features = ["non-contract-usage"] }
