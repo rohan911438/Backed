@@ -1,41 +1,69 @@
 # 09 — Demo and Pitch
 
+Pitch order: **data first, then the bug, then the fix.** The judge should see a real number about NEAR before hearing about a library.
+
 ## Pitch lines
-- **Headline:** "NEAR lost $22M+ in 2026 to one bug family that barely exists on Ethereum. Backed makes it impossible to ship."
-- **Mechanism:** "On NEAR, nothing rolls back. Backed makes sure a contract never owes more than it holds."
-- **Proof:** "We replayed all three 2026 incidents. Naive code loses money. Backed code doesn't."
-- **Live:** "Right now, anyone can verify on-chain that NEAR Intents holds what it owes, token by token."
+- **Hook:** "Does NEAR Intents actually hold every token it says you own? We checked all 370, at one block. 362 yes, 3 no."
+- **Why it matters:** "That gap, books saying more than the tokens, is the bug behind $22M+ of 2026 NEAR exploits: Intents, Rhea, SWEAT/HOT. Each one is sourced."
+- **Outside support:** "After the Intents exploit, NEAR's own engineers wrote this check by hand as a script. We made it a product: daily, on-chain, for any protocol."
+- **Fix:** "And a Rust library that stops contracts from writing the bug, proven by replaying all three attacks: naive code loses money, Backed code doesn't."
 
 ## 2-minute demo script
 
 | Time | Show | Say |
 |---|---|---|
-| 0:00–0:15 | Three headlines: Intents $3.8M, Rhea $18.4M, SWEAT/HOT zero-day | "Three NEAR incidents this year. Same bug: the ledger said one thing, the tokens said another." |
-| 0:15–0:35 | NEAR's own regression test comment (log limit → resolve failed) | "On NEAR, a callback can fail on a log-size limit, and nothing rolls back. Ethereum doesn't have this problem." |
-| 0:35–1:05 | Terminal: `cargo test replay_` → naive ❌ owed > held; Backed ✅ | "Same attack, three times. Naive contracts end up owing money they don't have. Backed contracts can't." |
-| 1:05–1:25 | Terminal: `backed chaos naive.wasm` finding F2/F4 by itself | "The chaos tester fails every async step on purpose and checks the books after each one." |
-| 1:25–1:45 | Web page: Intents live backing, 362 tokens ✅, 3 under-backed ⚠️ | "Live on mainnet: NEAR Intents is fully backed for its major tokens. Our scan even found three small tokens it owes more of than it holds." |
-| 1:45–2:00 | Explorer: a real `attest` transaction on the checker contract | "And anyone can prove it on-chain, no trusted reporter. Backed: never owe more than you hold." |
+| 0:00–0:20 | backed-near.vercel.app home: dot field, "362 of 370 tokens backed" | "Does NEAR Intents hold every token it owes? Each dot is a token, read from mainnet at one block. Green is backed, amber isn't." |
+| 0:20–0:40 | App → Live backing → filter **issues** → press **Verify** on `ninu-4.nearlytrade.near` | "Three are under-backed. Press Verify and your browser re-reads both numbers from mainnet right now. No server, no trust in us." |
+| 0:40–1:00 | Home → Problem section, incident cards with source links | "This gap caused $22M+ of losses this year. Intents' callback failed on a log limit and the books kept a balance the tokens had refunded. NEAR's own regression test says so; it's linked." |
+| 1:00–1:10 | NEAR's `list_nep245_tokens.sh` on GitHub | "After that, NEAR's engineers wrote this check by hand. Backed runs it every day and records it on-chain." |
+| 1:10–1:40 | App → Replays → Intents: naive vs Backed side by side | "We replay each attack on a real local NEAR sandbox. The naive vault ends up owing 100 more than it holds. The Backed vault refuses the withdrawal." |
+| 1:40–1:55 | App → Checker → **Sign & record** with a wallet, then the explorer tx | "Anyone can record the result on-chain from their wallet. The checker reads both contracts itself, so nobody has to trust the reporter." |
+| 1:55–2:00 | Repo README | "Open source, MIT. Backed: never owe more than you hold." |
+
+Record at 1080p, browser zoom 110%, dark theme. Keep the terminal out unless there's time: the web app shows everything.
+
+## Draft X post (you post it)
+
+> Does NEAR Intents actually hold every token it owes?
+>
+> We built Backed at #NEARHackathon to check: 370 tokens, owed vs held at one block, on mainnet. 362 backed, 3 not.
+>
+> That gap is the bug behind $22M+ of 2026 NEAR exploits. Backed also ships the Rust library that prevents it, proven by replaying all 3 attacks.
+>
+> Try it: https://backed-near.vercel.app
+> Code: https://github.com/rohan911438/Backed
+>
+> [video]
+
+## Draft "What we built" (submission field, 20–2000 chars)
+
+> Backed checks whether NEAR protocols hold the tokens their own books say they owe, and prevents the bug that makes them drift apart.
+>
+> On NEAR, contract calls are asynchronous and nothing rolls back. When a callback fails or trusts a claimed amount, a contract's ledger can record tokens it doesn't hold. That caused NEAR Intents' $3.8M exploit (Oct 2026), Rhea Finance's $18.4M (Apr 2026) and the SWEAT/HOT zero-day; sources are linked in the README.
+>
+> What we built: (1) a live check of every NEP-141 token in intents.near, owed (mt_supply) vs held (ft_balance_of) at the same block. 362 of 370 are backed and 3 are under-backed, re-verifiable from the browser. (2) A checker contract that records these attestations on-chain with no trusted reporter, deployed on testnet with the same code ready for mainnet. (3) The `backed` Rust library for near-sdk contracts: balances grow only from delivered amounts, callbacks are private and can't panic, and owed ≤ held is asserted on every change. (4) A chaos harness that replays all three attacks on a local NEAR sandbox: the naive vault loses money, the Backed vault doesn't. (5) A CLI, a daily GitHub scan with history, a draft NEP for a standard `backed_solvency` view, and a skill so AI coding agents write NEAR contracts with these rules by default.
+>
+> NEAR's own engineers ran this check by hand after the Intents exploit. Backed makes it continuous and preventive.
 
 ## Judge Q&A
 
 **"Isn't this just proof of reserves?"**
-Proof of reserves trusts reporters and only watches. Backed prevents the bug in code, proves it with runtime failure injection, and verifies on-chain without reporters. Watching is only the last layer.
+Proof of reserves trusts reporters and only watches. Backed reads both numbers from the chain itself, at one block, prevents the bug in code, and proves the prevention with replays. Watching is only the last layer.
+
+**"Is NEAR broken?"**
+No. These are bugs in individual apps. NEAR's async design is deliberate, and its docs warn about callbacks. Each team fixed its own contract after the fact. Backed is the missing tooling: safe patterns by default, plus continuous checking.
 
 **"Why would protocols adopt it?"**
-It costs them nothing to be checked (Intents and Rhea are covered today without changes). For new code, it replaces accounting they'd otherwise hand-write and get wrong; the chaos suite runs in CI. AI coding agents use it by default through the skill.
+Being checked costs them nothing: Intents and Rhea are covered today without changes. For new code, the library replaces accounting they'd otherwise hand-write, and the replays run in CI. AI coding agents use it by default through the skill.
 
 **"NEAR already fixed the Intents bug."**
-They fixed one instance (removed deposit notifications, added gas). The family remains: any protocol with an internal ledger and callbacks. NEAR's own post-incident script is our core check; we made it continuous, on-chain and preventive.
+They fixed one instance (removed deposit notifications, added callback gas). The family remains: any protocol with an internal ledger and callbacks. NEAR's own post-incident script is our core check.
 
 **"Does it stop every hack?"**
-No. It stops the "owe more than you hold" family and makes everything else that drains backing visible fast. Oracle manipulation, governance and key theft are out of scope.
+No. It stops the "owe more than you hold" family and makes anything else that drains backing visible. Oracle manipulation, governance attacks and key theft are out of scope.
 
-**"Where are the AI agents?"**
-Three places: AI attackers make continuous checks necessary (the 2026 attacks were set up over days); AI coding agents get safe-by-default patterns through the skill; AI agents and wallets read the checker before depositing.
+**"Why testnet?"**
+The checker contract is on testnet; mainnet protocols are read live. The same code deploys to mainnet with one command after a free cost preflight (docs/MAINNET.md).
 
 **"Did you find something real?"**
-Yes. Three small tokens in Intents (two memecoins and a test token) are under-backed at block 221,256,203. It's likely token mechanics (burns or transfer fees) that Intents' ledger doesn't see: the same class, small scale. We report it as a finding, not an exploit.
-
-## README structure (for AI judges)
-1. What it is (2 lines). 2. The problem with sources. 3. Try it in 3 commands: `cargo test replay_`, `backed check intents.near`, open the web page. 4. Architecture diagram. 5. What it guarantees and what it doesn't. 6. Mainnet addresses. 7. Tracks and NEAR features used.
+Three small tokens in Intents (two memecoins and a test token) are under-backed. That's likely burns or transfer fees that Intents' ledger doesn't see: the same class, small scale. We report it as a finding, not an exploit.
