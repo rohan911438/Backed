@@ -23,6 +23,10 @@ struct Cli {
     /// Print JSON instead of a table.
     #[arg(long, global = true)]
     json: bool,
+    /// Read at this past block height instead of the latest final block.
+    /// Needs an archival RPC, e.g. --rpc https://archival-rpc.mainnet.fastnear.com
+    #[arg(long, global = true)]
+    block: Option<u64>,
     #[command(subcommand)]
     cmd: Cmd,
 }
@@ -178,7 +182,7 @@ fn main() -> Result<()> {
     match cli.cmd {
         Cmd::Check { target, tokens, adapter } => {
             let kind = adapter_for(&target, adapter.as_deref())?;
-            let block = rpc.final_block()?;
+            let block = match cli.block { Some(b) => b, None => rpc.final_block()? };
             let rows: Vec<_> = tokens.iter().map(|t| read(&rpc, &target, &kind, t, block)).collect();
             if cli.json {
                 println!("{}", serde_json::to_string_pretty(&json!({"block": block, "readings": rows}))?);
@@ -188,7 +192,7 @@ fn main() -> Result<()> {
             }
         }
         Cmd::ScanIntents { limit, parallel, metadata } => {
-            let block = rpc.final_block()?;
+            let block = match cli.block { Some(b) => b, None => rpc.final_block()? };
             let mut tokens = Vec::new();
             let mut from = 0u64;
             loop {
@@ -245,7 +249,7 @@ fn main() -> Result<()> {
         }
         Cmd::Chaos { scenario, vault } => chaos(scenario.as_deref(), &vault, cli.json)?,
         Cmd::Attest { target, token, checker, signer } => {
-            println!("Records an on-chain attestation (first time per pair: attach 0.005 NEAR for storage):\n");
+            println!("Records an on-chain attestation (attach 0.005 NEAR; the unused part is refunded):\n");
             println!(
                 "near contract call-function as-transaction {checker} attest json-args '{{\"target\":\"{target}\",\"token\":\"{token}\"}}' prepaid-gas '60 Tgas' attached-deposit '0.005 NEAR' sign-as {signer} network-config mainnet sign-with-keychain send"
             );

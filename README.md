@@ -15,7 +15,7 @@ The same gap, a ledger that records more than the contract holds, is the bug beh
 | **Replays** | 3 of 3 attacks break the naive vault; 3 of 3 are blocked by the Backed vault |
 | **Checker contract** | [`simplekilt7490.testnet`](https://testnet.nearblocks.io/address/simplekilt7490.testnet): records backing on-chain, signed from your wallet |
 | **Network** | Mainnet protocols are **read** live (read-only). The checker contract is deployed on **testnet**. |
-| **Tests** | 34 unit tests + 3 sandbox replays, run in CI on every push |
+| **Tests** | 36 unit tests + 3 sandbox replays, run in CI on every push |
 | **Tracks** | Open Innovation · Unstoppable DeFi |
 
 ### Try it in one minute
@@ -39,6 +39,8 @@ The same gap, a ledger that records more than the contract holds, is the bug beh
 - [Using the library](#using-the-library)
 - [The checker contract](#the-checker-contract)
 - [CLI reference](#cli-reference)
+- [Daily monitoring](#daily-monitoring)
+- [Roadmap](#roadmap)
 - [For AI coding agents](#for-ai-coding-agents)
 - [Architecture](#architecture)
 - [Repository layout](#repository-layout)
@@ -146,7 +148,7 @@ Backing = what the protocol holds (`ft_balance_of`) vs what it owes (its own vie
 - **NEAR Intents** (`intents.near`, block 221,256,203): of 370 NEP-141 tokens, **362 fully backed**, **3 under-backed** (`ninu-4.nearlytrade.near`, `batman-4.nearlytrade.near`, test token `nvdastest.optimal-bone.near`), 5 unreadable (broken token contracts). The shortfall fits burns or transfer fees the ledger doesn't see. This is a finding to investigate, not an exploit.
 - **Rhea lending** (`contract.main.burrow.near`): every major token fully backed.
 
-After the October exploit, NEAR's engineers ran this kind of check by hand (`scripts/list_nep245_tokens.sh` in [near/intents](https://github.com/near/intents)). Backed makes it continuous, on-chain and preventive.
+After the October exploit, NEAR's engineers wrote this exact check by hand: [`scripts/list_nep245_tokens.sh`](https://github.com/near/intents/blob/0c1a530c8da337008e28baa9987a816249d707e6/scripts/list_nep245_tokens.sh), added in the same commit as the bug's regression test, compares `mt_supply` with `intents.near`'s real balance on each token at one block height. Backed turns that one-off script into a product: it runs every day ([daily scan](#daily-monitoring)), can be recorded on-chain by anyone (the checker), works for any protocol that adopts a [standard view](docs/NEP-backed-solvency.md), and comes with a library that prevents the drift in the first place.
 
 ### Checker on testnet (2026-10-24)
 
@@ -180,7 +182,7 @@ Rust builds need **Linux, macOS or WSL** (near-sdk tests don't build with the Wi
 ```bash
 git clone https://github.com/rohan911438/Backed && cd Backed
 
-# 1. Unit tests (34)
+# 1. Unit tests (36)
 cargo test -p backed -p backed-checker -p backed-chaos -p naive-vault -p backed-vault
 
 # 2. Build all contracts, then replay the three attacks on a local NEAR sandbox
@@ -245,26 +247,44 @@ A complete example contract: [`contracts/examples/backed-vault`](contracts/examp
 
 | Method | Who | What |
 |---|---|---|
-| `attest(target, token)` | anyone | Reads owed (protocol's view) and held (`ft_balance_of`), classifies, stores, emits an event. First time per pair: attach 0.005 NEAR for storage. |
+| `attest(target, token)` | anyone | Reads owed (protocol's view) and held (`ft_balance_of`), classifies, stores, emits an event. Attach 0.005 NEAR: the checker keeps only the storage the call adds and refunds the rest. |
 | `get_status(target, token)` | view | `{ state, owed, held, last_block }`, with `state` = `Healthy`, `Suspected` or `Confirmed` |
 | `list_breaches(from_index, limit)` | view | Every recorded shortfall |
 | `register_self()` | protocol | Opt in: your contract implements `backed_solvency(token)`, so no custom adapter is needed |
 | `set_adapter(target, kind)` | owner | Adapters: `Nep245Ledger` (Intents `mt_supply`), `BurrowLending` (Rhea `get_asset`), `BackedStandard` |
+| `set_owner(owner)` / `get_owner()` | owner / view | Hand adapter management to a multisig or DAO |
 
 On-chain reads land in different blocks, so a single reading can be off by in-flight transfers. A breach is therefore **Suspected** first and **Confirmed** only when a second attestation at least 30 blocks later still shows it. Promise results are read with bounded sizes, so a hostile target can't make the callback run out of gas.
 
-Deploy and attest yourself: `cargo run -p backed-chaos --features sandbox --example live -- <testnet|mainnet> <account> <deploy|attest|status> [target token]`. The key is read from `~/.near-credentials/<network>/<account>.json`, never from the command line.
+Abuse resistance: every `attest` pays for the storage it adds and is refunded the rest, so repeated calls can't drain the checker's balance; a breach is logged only when a pair changes state, so they can't flood the log either.
+
+Deploy and attest yourself: `cargo run -p backed-chaos --features sandbox --example live -- <testnet|mainnet> <account> <preflight|deploy|upgrade|attest|status> [target token]`. `preflight` prints the cost and checks the balance without spending anything; `upgrade` ships new code and keeps all records. The key is read from `~/.near-credentials/<network>/<account>.json`, never from the command line. Full mainnet checklist: [`docs/MAINNET.md`](docs/MAINNET.md).
 
 ## CLI reference
 
 ```
-backed check <target> --token <token>... [--adapter nep245|burrow|backed] [--json]
+backed check <target> --token <token>... [--adapter nep245|burrow|backed] [--json] [--block <height>]
 backed scan-intents [--limit N] [--parallel N] [--metadata] [--json]
 backed chaos [--scenario intents|sweat|rhea] [--vault naive|backed|both] [--json]   # needs --features chaos
 backed attest <target> <token> --signer <account> [--checker <account>]             # prints the near-cli command
 ```
 
-`check` and `scan-intents` read owed and held **at the same block**, so results are exact. `chaos` exits non-zero if a Backed vault ever breaks the invariant, which makes it usable as a CI gate.
+`check` and `scan-intents` read owed and held **at the same block**, so results are exact. Add `--block <height>` with an archival RPC (`--rpc https://archival-rpc.mainnet.near.org`) to read any past block. `chaos` exits non-zero if a Backed vault ever breaks the invariant, which makes it usable as a CI gate.
+
+Prebuilt binaries for Linux, macOS and Windows are attached to each [GitHub release](https://github.com/rohan911438/Backed/releases) (built by [`release.yml`](.github/workflows/release.yml) when a `v*` tag is pushed).
+
+## Daily monitoring
+
+[`monitor.yml`](.github/workflows/monitor.yml) runs once a day on GitHub Actions, free and with no keys: it scans every NEP-141 token in `intents.near`, refreshes the web app's snapshot, appends one line to [`data/backing-history.csv`](data/backing-history.csv), and **opens a GitHub issue** when a token becomes under-backed that wasn't the day before.
+
+## Roadmap
+
+| Now | Next |
+|---|---|
+| Checker on testnet, same code ready for mainnet ([checklist](docs/MAINNET.md)) | Mainnet deploy with Intents and Rhea adapters |
+| Adapters for Intents (`mt_supply`) and Rhea (`get_asset`) | Any protocol via the [`backed_solvency` standard](docs/NEP-backed-solvency.md) (draft NEP) |
+| Daily scan + GitHub issue on new shortfalls | Alerts to Telegram/Discord; checker attestations from the daily job |
+| Rust library for near-sdk contracts | Same rules as a lint in the agent skill for every NEAR contract an AI agent writes |
 
 ## For AI coding agents
 
@@ -312,8 +332,10 @@ contracts/helpers/      test-token, evil-receiver, lying-venue (used by the repl
 cli/                    backed CLI: check, scan-intents, chaos, attest
 web/                    Vite + React app: home, live backing, checker (wallet), replays, build
 skill/SKILL.md          instructions for AI coding agents
+docs/                   draft NEP for backed_solvency, mainnet deploy checklist
+data/                   daily backing history (written by the monitor workflow)
 scripts/build-wasm.sh   builds every contract with cargo-near
-.github/workflows/      CI (unit tests, sandbox replays, web build); Pages deploy (manual; the live site is on Vercel)
+.github/workflows/      CI (unit tests, sandbox replays, web build), daily scan, CLI release; Pages deploy (manual; the live site is on Vercel)
 Idea/                   design documents, incl. user workflows
 ```
 

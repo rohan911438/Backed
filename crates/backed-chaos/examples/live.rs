@@ -2,7 +2,7 @@
 //!
 //! ```text
 //! cargo run -p backed-chaos --features sandbox --example live -- \
-//!     <testnet|mainnet> <account-id> <deploy|attest|status> [target token]
+//!     <testnet|mainnet> <account-id> <preflight|deploy|upgrade|attest|status> [target token]
 //! ```
 //!
 //! The signing key is read from `~/.near-credentials/<network>/<account-id>.json`
@@ -10,6 +10,10 @@
 //!
 //! - `deploy`: uploads `backed_checker.wasm` to `<account-id>`, calls
 //!   `new(owner = account-id)`, and sets the Burrow (and on mainnet, Intents) adapters.
+//! - `preflight`: free. Prints the wasm size, the storage it locks, and whether
+//!   the account can afford it. Run this before `deploy` on mainnet.
+//! - `upgrade`: uploads a new `backed_checker.wasm` without calling `new`, so
+//!   recorded attestations and adapters are kept.
 //! - `attest <target> <token>`: one on-chain attestation; prints the result.
 //! - `status <target> <token>`: reads the stored status (view, free).
 
@@ -43,7 +47,7 @@ fn credentials(network: &str, account: &str) -> Result<PathBuf> {
 async fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let [network, account, cmd, rest @ ..] = args.as_slice() else {
-        bail!("usage: live <testnet|mainnet> <account-id> <deploy|attest|status> [target token]");
+        bail!("usage: live <testnet|mainnet> <account-id> <preflight|deploy|upgrade|attest|status> [target token]");
     };
     match network.as_str() {
         "testnet" => run(near_workspaces::testnet().rpc_addr(TESTNET_RPC).await?, network, account, cmd, rest).await,
@@ -56,6 +60,32 @@ async fn run<N: Network + 'static>(worker: Worker<N>, network: &str, account: &s
     let signer = Account::from_file(credentials(network, account)?, &worker)?;
     let checker: AccountId = account.parse()?;
     match (cmd, rest) {
+        ("preflight", []) => {
+            let wasm = std::fs::read(backed_chaos::sandbox::wasm_path("backed_checker")?)?;
+            let details = worker.view_account(&checker).await?;
+            // 1 NEAR per 100 KB of storage (10^19 yocto per byte), plus state and gas headroom.
+            let code_cost = NearToken::from_yoctonear(wasm.len() as u128 * 10u128.pow(19));
+            let headroom = NearToken::from_millinear(300);
+            let need = code_cost.saturating_add(headroom);
+            println!("network:        {network}");
+            println!("account:        {checker}");
+            println!("wasm:           {} bytes", wasm.len());
+            println!("storage locked: {} NEAR (for the code)", fmt_near(code_cost));
+            println!("plus headroom:  {} NEAR (state, adapters, gas)", fmt_near(headroom));
+            println!("balance:        {} NEAR", fmt_near(details.balance));
+            if details.balance >= need {
+                println!("OK: enough to deploy.");
+            } else {
+                bail!("not enough NEAR: need about {} more", fmt_near(need.saturating_sub(details.balance)));
+            }
+        }
+        ("upgrade", []) => {
+            let wasm = std::fs::read(backed_chaos::sandbox::wasm_path("backed_checker")?)?;
+            println!("upgrading {checker} on {network} to {} bytes (state kept)...", wasm.len());
+            signer.deploy(&wasm).await?.into_result()?;
+            let owner: Value = worker.view(&checker, "get_owner").await?.json()?;
+            println!("  upgraded; owner is still {owner}");
+        }
         ("deploy", []) => {
             let wasm = std::fs::read(backed_chaos::sandbox::wasm_path("backed_checker")?)?;
             println!("deploying {} bytes to {checker} on {network}...", wasm.len());
@@ -96,7 +126,7 @@ async fn run<N: Network + 'static>(worker: Worker<N>, network: &str, account: &s
                 .json()?;
             println!("{}", serde_json::to_string_pretty(&v)?);
         }
-        _ => bail!("usage: live <testnet|mainnet> <account-id> <deploy|attest|status> [target token]"),
+        _ => bail!("usage: live <testnet|mainnet> <account-id> <preflight|deploy|upgrade|attest|status> [target token]"),
     }
     Ok(())
 }
@@ -108,4 +138,8 @@ fn report(what: &str, res: &near_workspaces::result::ExecutionFinalResult) -> Re
     }
     println!("  {what}: ok (tx {hash})");
     Ok(())
+}
+
+fn fmt_near(t: NearToken) -> String {
+    format!("{:.4}", t.as_yoctonear() as f64 / 1e24)
 }

@@ -1,5 +1,5 @@
 import DotField from "../DotField";
-import { REPO } from "../config";
+import { REPO, WALLET_NETWORK } from "../config";
 import { INCIDENTS, PILLARS, REPLAYS } from "../content";
 import { href, navigate, type Page } from "../router";
 import { useSnapshot } from "../snapshot";
@@ -218,7 +218,7 @@ export default function Home() {
               <h2>
                 Check it <em>yourself.</em>
               </h2>
-              <p className="muted">Connect a NEAR testnet wallet and record your first on-chain attestation in under a minute.</p>
+              <p className="muted">Connect a NEAR {WALLET_NETWORK} wallet and record your first on-chain attestation in under a minute.</p>
             </div>
             <button className="btn btn-ok btn-lg" onClick={primary}>
               {accountId ? "Open the app" : "Connect wallet"} <span aria-hidden>→</span>

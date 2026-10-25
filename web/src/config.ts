@@ -1,26 +1,55 @@
-// Where things live. The checker contract runs on testnet; mainnet protocols are read-only.
+// Where things live. One switch moves the wallet and the checker between networks:
+//   VITE_NETWORK=mainnet VITE_CHECKER_ACCOUNT=<account>.near npm run build
+// Mainnet protocols are always read live and read-only, whatever the switch says.
 
 export const REPO = "https://github.com/rohan911438/Backed";
 
 export type NetworkId = "mainnet" | "testnet";
 
-/** The network the wallet signs on (where the checker contract is deployed). */
-export const WALLET_NETWORK: NetworkId = "testnet";
+const env = import.meta.env;
 
-export const CHECKER = {
-  network: "testnet" as NetworkId,
-  account: "simplekilt7490.testnet",
+/** The network the wallet signs on (where the checker contract is deployed). */
+export const WALLET_NETWORK: NetworkId = env.VITE_NETWORK === "mainnet" ? "mainnet" : "testnet";
+
+const DEFAULT_CHECKER: Record<NetworkId, string> = {
+  testnet: "simplekilt7490.testnet",
+  mainnet: "luckycity5453.near",
 };
 
-/** Targets the testnet checker has an adapter for, with tokens worth checking. */
-export const CHECKER_TARGETS = [
-  {
-    label: "Rhea / Burrow lending (testnet)",
-    target: "contract.1638481328.burrow.testnet",
-    adapter: "burrow" as const,
-    tokens: ["wrap.testnet", "usdc.fakes.testnet"],
-  },
-];
+export const CHECKER = {
+  network: WALLET_NETWORK,
+  account: (env.VITE_CHECKER_ACCOUNT as string | undefined) || DEFAULT_CHECKER[WALLET_NETWORK],
+};
+
+export type CheckerTarget = { label: string; target: string; adapter: "burrow" | "nep245"; tokens: string[] };
+
+/** Targets the checker has an adapter for on each network, with tokens worth checking. */
+const TARGETS: Record<NetworkId, CheckerTarget[]> = {
+  testnet: [
+    {
+      label: "Rhea / Burrow lending (testnet)",
+      target: "contract.1638481328.burrow.testnet",
+      adapter: "burrow",
+      tokens: ["wrap.testnet", "usdc.fakes.testnet"],
+    },
+  ],
+  mainnet: [
+    {
+      label: "NEAR Intents",
+      target: "intents.near",
+      adapter: "nep245",
+      tokens: ["wrap.near", "usdt.tether-token.near", "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1"],
+    },
+    {
+      label: "Rhea / Burrow lending",
+      target: "contract.main.burrow.near",
+      adapter: "burrow",
+      tokens: ["wrap.near", "usdt.tether-token.near"],
+    },
+  ],
+};
+
+export const CHECKER_TARGETS = TARGETS[WALLET_NETWORK];
 
 export const RPCS: Record<NetworkId, string[]> = {
   mainnet: ["https://free.rpc.fastnear.com", "https://rpc.mainnet.fastnear.com"],

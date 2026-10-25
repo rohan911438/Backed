@@ -1,0 +1,79 @@
+name: Release CLI
+
+# Push a tag like v0.1.0 to publish prebuilt `backed` binaries (without the
+# sandbox `chaos` command, which needs a local NEAR node) plus the checker wasm.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu, ext: "" }
+          - { os: macos-latest, target: aarch64-apple-darwin, ext: "" }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, ext: ".exe" }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - name: Build
+        run: cargo build --release -p backed-cli --target ${{ matrix.target }}
+      - name: Package
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp target/${{ matrix.target }}/release/backed${{ matrix.ext }} dist/backed-${{ matrix.target }}${{ matrix.ext }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: backed-${{ matrix.target }}
+          path: dist/*
+
+  wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: System libraries for cargo-near
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
+      - uses: cargo-bins/cargo-binstall@main
+      - run: cargo binstall --no-confirm cargo-near@0.22.0
+      - name: Build checker
+        run: |
+          cargo near build non-reproducible-wasm --manifest-path contracts/checker/Cargo.toml
+          mkdir -p dist && cp target/near/backed_checker/backed_checker.wasm dist/
+          sha256sum dist/backed_checker.wasm > dist/backed_checker.wasm.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: checker-wasm
+          path: dist/*
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [build, wasm]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" dist/* --repo "${{ github.repository }}" \
+            --title "Backed ${{ github.ref_name }}" \
+            --notes "Prebuilt \`backed\` CLI (check, scan-intents, attest) for Linux, macOS (Apple silicon) and Windows, plus the checker contract wasm and its SHA-256. The sandbox \`chaos\` command needs a source build: \`cargo install --path cli --features chaos\`."

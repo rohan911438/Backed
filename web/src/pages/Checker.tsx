@@ -9,7 +9,7 @@ type PairStatus = { state: State; last_block: number; owed: string; held: string
 type Breach = { target: string; token: string; block: number; owed: string; held: string; confirmed: boolean };
 type Row = { target: string; token: string; symbol?: string; decimals?: number; status: PairStatus | null; error?: string };
 
-const NEW_PAIR_DEPOSIT = 5n * 10n ** 21n; // 0.005 NEAR, covers storage for a new pair
+const NEW_PAIR_DEPOSIT = 5n * 10n ** 21n; // 0.005 NEAR storage deposit; unused part refunded
 
 function stateName(s: State): "Healthy" | "Suspected" | "Confirmed" | "Unknown" {
   if (s === "Healthy") return "Healthy";
@@ -72,8 +72,8 @@ export default function Checker() {
     setBusy("sign");
     setError(null);
     try {
-      const known = rows?.some((r) => r.target === target && r.token === token.trim() && r.status);
-      const res = await callChecker("attest", { target, token: token.trim() }, known ? 0n : NEW_PAIR_DEPOSIT, 100);
+      // Always attach 0.005 NEAR: the checker keeps only the storage it uses and refunds the rest.
+      const res = await callChecker("attest", { target, token: token.trim() }, NEW_PAIR_DEPOSIT, 100);
       if (res.hash) setTxs((t) => [res.hash!, ...t]);
     } catch (e: any) {
       setError(String(e?.message ?? e));
@@ -162,7 +162,7 @@ export default function Checker() {
           )}
 
           <p className="muted small">
-            Costs gas (about 0.001 NEAR). The first attestation of a new protocol/token pair also attaches 0.005 NEAR for storage.
+            Costs gas (about 0.001 NEAR). Each attestation attaches 0.005 NEAR for storage; the unused part is refunded.
             {accountId && balance !== null && (
               <>
                 {" "}

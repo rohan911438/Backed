@@ -149,7 +149,7 @@ On-chain reads of `owed` and `held` land in different blocks, so one reading can
 Real breaches persist (Intents' unbacked balances lasted 2 days); in-flight noise doesn't.
 
 ### Storage and cost
-- One small record per (target, token) plus a bounded breach log. New pairs need a small storage deposit from the caller.
+- One small record per (target, token) plus a bounded breach log. Every attest attaches 0.005 NEAR; the checker keeps only the storage the call adds and refunds the rest. A breach is logged only when a pair changes state.
 - **Lazy attestation:** the contract isn't polled. The free off-chain scanner (§4) watches continuously and calls `attest` only when it sees a mismatch, plus an optional daily heartbeat for headline pairs. Keeps running cost near zero.
 - Gas per `attest`: estimated 20–40 Tgas (≈0.002–0.004 NEAR). **To be measured on day 1.**
 - No admin power over anyone's funds. v1 owner can add adapter configs; it is locked (keys removed) after judging.

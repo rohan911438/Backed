@@ -1,4 +1,5 @@
 // Static content shared by the home page and the app.
+import { WALLET_NETWORK } from "./config";
 
 export const INCIDENTS = [
   {
@@ -51,7 +52,7 @@ export const PILLARS = [
     tag: "Verify",
     title: "Checker",
     kind: "On-chain contract",
-    body: "Anyone can record, on-chain, whether a protocol holds what it owes, read from the protocol's and the token's own views. No trusted reporter. Live on NEAR testnet.",
+    body: `Anyone can record, on-chain, whether a protocol holds what it owes, read from the protocol's and the token's own views. No trusted reporter. Live on NEAR ${WALLET_NETWORK}.`,
   },
 ];
 

@@ -171,8 +171,17 @@ function WalletModal({
           </button>
         </div>
         <p className="muted modal-note">
-          The checker contract runs on <b>testnet</b>. Use a testnet account (free NEAR from the faucet). Reading data never
-          needs a wallet; signing an attestation does.
+          {WALLET_NETWORK === "testnet" ? (
+            <>
+              The checker contract runs on <b>testnet</b>. Use a testnet account (free NEAR from the faucet).
+            </>
+          ) : (
+            <>
+              The checker contract runs on <b>mainnet</b>. Each attestation costs a little gas plus a 0.005 NEAR storage
+              deposit, and the unused part is refunded.
+            </>
+          )}{" "}
+          Reading data never needs a wallet; signing an attestation does.
         </p>
         {!selector && <p className="muted">Loading wallets…</p>}
         <div className="wallet-list">
@@ -191,8 +200,8 @@ function WalletModal({
         </div>
         {error && <p className="warn modal-error">{error}</p>}
         <p className="muted modal-foot">
-          No testnet account?{" "}
-          <a href="https://testnet.mynearwallet.com" target="_blank" rel="noreferrer">
+          No {WALLET_NETWORK} account?{" "}
+          <a href={WALLET_NETWORK === "testnet" ? "https://testnet.mynearwallet.com" : "https://app.mynearwallet.com"} target="_blank" rel="noreferrer">
             Create one at MyNearWallet
           </a>
           .
