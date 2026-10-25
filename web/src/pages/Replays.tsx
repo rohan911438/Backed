@@ -39,17 +39,27 @@ function RunColumn({ label, run, token, max }: { label: string; run: ReplayRun; 
       <ol className="run-steps">
         {run.steps.map((s, i) => {
           const book = s.books.find((b) => b.token === token);
+          // An attacker's transaction that fails while the books still match
+          // was stopped by the vault: that's the defense working, not an error.
+          const blocked = !s.ok && s.actor !== "lp" && !(book && book.owed > book.held);
+          const status = s.ok ? "ok" : blocked ? "blocked" : "failed";
           return (
-            <li key={i} className={s.ok ? "" : "step-failed"}>
+            <li key={i} className={s.ok ? "" : blocked ? "step-blocked" : "step-failed"}>
               <div className="step-top">
                 <span className="step-actor mono">{s.actor}</span>
                 <span className="step-note">
                   {s.note}
                   {s.tag && <span className="step-tag mono">{s.tag}</span>}
                 </span>
-                <span className={`step-status mono ${s.ok ? "muted" : "warn"}`}>{s.ok ? "ok" : "failed"}</span>
+                <span className={`step-status mono ${s.ok ? "muted" : blocked ? "ok" : "warn"}`}>
+                  {blocked ? "✓ blocked" : status}
+                </span>
               </div>
-              {s.error && <p className="step-error mono">{s.error}</p>}
+              {s.error && (
+                <p className={`step-error mono ${blocked ? "step-error-blocked" : ""}`}>
+                  {blocked ? `rejected by the vault: ${s.error}` : s.error}
+                </p>
+              )}
               {book && <BookBar book={book} max={max} />}
             </li>
           );
@@ -77,6 +87,9 @@ export function ReplayCompare({ replay, compact }: { replay: Replay; compact?: b
         <p className="legend muted">
           <span className="lg lg-owed" /> owed (vault's books) <span className="lg lg-held" /> held (token's real balance) · shown for{" "}
           <span className="mono">{token}</span>
+          <br />
+          <b className="warn">failed</b> = a call crashed and left the books wrong · <b className="ok">blocked</b> = the vault
+          rejected the attacker's transaction, so nothing was lost
         </p>
       </div>
       <div className="replay-cols">

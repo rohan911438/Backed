@@ -900,3 +900,6 @@ button.btn {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+.step-error-blocked {
+  color: var(--ok);
+}
