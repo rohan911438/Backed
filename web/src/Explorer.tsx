@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { REPO } from "./config";
-import { checkToken, coverage, finalBlock, formatUnits, tokenMeta, type Adapter, type Reading } from "./near";
+import { checkRef, checkToken, coverage, finalBlock, formatUnits, tokenMeta, type Adapter, type Reading } from "./near";
 
 const RHEA_TOKENS = [
   "wrap.near",
@@ -9,6 +9,21 @@ const RHEA_TOKENS = [
   "eth.bridge.near",
   "nbtc.bridge.near",
   "zec.omft.near",
+];
+const REF_TOKENS = [
+  "wrap.near",
+  "usdt.tether-token.near",
+  "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+  "token.v2.ref-finance.near",
+  "meta-pool.near",
+  "linear-protocol.near",
+  "lst.rhealab.near",
+  "nbtc.bridge.near",
+  "2260fac5e5542a773aa44fbcfedf7c193bc2c599.factory.bridge.near",
+  "dac17f958d2ee523a2206206994597c13d831ec7.factory.bridge.near",
+  "a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.factory.bridge.near",
+  "token.sweat",
+  "blackdragon.tkn.near",
 ];
 const MAJOR = ["USDC", "USDT", "wNEAR", "ETH", "nBTC", "ZEC", "WBTC"];
 
@@ -26,11 +41,12 @@ function rank(r: Reading) {
 }
 
 export default function Explorer({ snapshot }: Props) {
-  const [tab, setTab] = useState<"intents" | "rhea">("intents");
+  const [tab, setTab] = useState<"intents" | "rhea" | "ref">("intents");
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const [rows, setRows] = useState<Reading[]>([]);
   const [rhea, setRhea] = useState<Reading[] | null>(null);
+  const [ref, setRef] = useState<Reading[] | null>(null);
   const [checking, setChecking] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
 
@@ -54,9 +70,15 @@ export default function Explorer({ snapshot }: Props) {
     })();
   }, [tab, rhea]);
 
+  // Ref Finance: pool reserves (a floor for what it owes) vs holdings, at one block.
+  useEffect(() => {
+    if (tab !== "ref" || ref) return;
+    checkRef(REF_TOKENS).then(setRef);
+  }, [tab, ref]);
+
   const target = tab === "intents" ? "intents.near" : "contract.main.burrow.near";
   const adapter: Adapter = tab === "intents" ? "nep245" : "burrow";
-  const source = tab === "intents" ? rows : (rhea ?? []);
+  const source = tab === "intents" ? rows : tab === "rhea" ? (rhea ?? []) : (ref ?? []);
 
   const stats = useMemo(
     () => ({
@@ -78,10 +100,11 @@ export default function Explorer({ snapshot }: Props) {
 
   async function verifyLive(token: string) {
     setChecking(token);
-    const res = await checkToken(target, adapter, token);
+    const res = tab === "ref" ? (await checkRef([token]))[0] : await checkToken(target, adapter, token);
     const update = (list: Reading[]) => list.map((r) => (r.token === token ? { ...r, ...res } : r));
     if (tab === "intents") setRows(update);
-    else setRhea((x) => (x ? update(x) : x));
+    else if (tab === "rhea") setRhea((x) => (x ? update(x) : x));
+    else setRef((x) => (x ? update(x) : x));
     setChecking(null);
   }
 
@@ -108,6 +131,9 @@ export default function Explorer({ snapshot }: Props) {
             <button role="tab" aria-selected={tab === "rhea"} onClick={() => setTab("rhea")}>
               Rhea lending
             </button>
+            <button role="tab" aria-selected={tab === "ref"} onClick={() => setTab("ref")}>
+              Ref Finance
+            </button>
           </div>
           <div className="stats">
             <span className="stat">
@@ -120,7 +146,7 @@ export default function Explorer({ snapshot }: Props) {
               <b>{stats.error}</b> unreadable
             </span>
             <span className="stat stat-muted mono">
-              {tab === "intents" && snapshot ? `block ${snapshot.block.toLocaleString("en-US")}` : rhea ? `block ${rhea[0]?.block.toLocaleString("en-US")}` : "…"}
+              {tab === "intents" && snapshot ? `block ${snapshot.block.toLocaleString("en-US")}` : tab === "rhea" && rhea ? `block ${rhea[0]?.block.toLocaleString("en-US")}` : tab === "ref" && ref ? `block ${ref[0]?.block.toLocaleString("en-US")}` : "…"}
             </span>
           </div>
         </div>
@@ -162,6 +188,13 @@ export default function Explorer({ snapshot }: Props) {
                   </td>
                 </tr>
               )}
+              {tab === "ref" && !ref && (
+                <tr>
+                  <td colSpan={6} className="empty">
+                    Reading all 8,991 Ref pools at one block…
+                  </td>
+                </tr>
+              )}
               {shown.map((r) => (
                 <tr key={r.token} className={r.status !== "backed" ? `row-${r.status === "error" ? "muted" : "warn"}` : ""}>
                   <td>
@@ -197,6 +230,14 @@ export default function Explorer({ snapshot }: Props) {
           </button>
         )}
       </div>
+      {tab === "ref" && (
+        <p className="footnote">
+          Ref Finance has no view for the total of users' internal deposits, so <b>owed</b> here is a floor: the sum of
+          every pool's reserves for the token. Held at or above it is expected (the gap is user deposits and fees). Held
+          below it would mean Ref is under-backed for certain. A <code>backed_solvency</code> view would make the check
+          exact.
+        </p>
+      )}
       <p className="footnote">
         Under-backed means the token contract reports less than the protocol's ledger records. We traced all three to
         their transactions: two memecoins take a sell tax, then report it to Intents as refunded, and Intents credits it;

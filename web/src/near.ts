@@ -191,3 +191,54 @@ export async function nearBalance(network: NetworkId, account: string): Promise<
     return null;
   }
 }
+
+/**
+ * Ref Finance v2 (v2.ref-finance.near): `owed` here is a FLOOR, the sum of every
+ * pool's reserves for the token. Users' internal deposits are owed too but Ref has
+ * no total view for them. If held < reserves, Ref is under-backed for sure.
+ */
+export const REF_TARGET = "v2.ref-finance.near";
+
+export async function refPoolReserves(block: number): Promise<Map<string, bigint>> {
+  const n = Number(JSON.parse(await view(REF_TARGET, "get_number_of_pools", {}, block)));
+  const pages = Array.from({ length: Math.ceil(n / 300) }, (_, i) => i * 300);
+  const sums = new Map<string, bigint>();
+  // A few pages at a time to stay polite with free RPCs.
+  for (let i = 0; i < pages.length; i += 4) {
+    const batch = await Promise.all(
+      pages.slice(i, i + 4).map(async (from) => JSON.parse(await view(REF_TARGET, "get_pools", { from_index: from, limit: 300 }, block))),
+    );
+    for (const pools of batch)
+      for (const p of pools as { token_account_ids: string[]; amounts: string[] }[])
+        p.token_account_ids.forEach((t, k) => sums.set(t, (sums.get(t) ?? 0n) + BigInt(p.amounts[k])));
+  }
+  return sums;
+}
+
+export async function checkRef(tokens: string[], block?: number): Promise<Reading[]> {
+  const b = block ?? (await finalBlock());
+  const sums = await refPoolReserves(b);
+  return Promise.all(
+    tokens.map(async (token) => {
+      const owed = sums.get(token) ?? 0n;
+      try {
+        const held = parseU128(await view(token, "ft_balance_of", { account_id: REF_TARGET }, b));
+        if (held === null) throw new Error("unreadable balance");
+        const under = held < owed;
+        return {
+          token,
+          ...(await tokenMeta(token, b)),
+          owed: owed.toString(),
+          held: held.toString(),
+          status: under ? "UNDER-BACKED" : "backed",
+          shortfall: under ? (owed - held).toString() : null,
+          error: null,
+          block: b,
+          live: true,
+        } as Reading;
+      } catch (e: any) {
+        return { token, owed: owed.toString(), held: null, status: "error", error: String(e?.message ?? e), block: b, live: true } as Reading;
+      }
+    }),
+  );
+}

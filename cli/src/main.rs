@@ -57,6 +57,12 @@ enum Cmd {
         #[arg(long)]
         metadata: bool,
     },
+    /// Ref Finance v2: every pool's reserves (a floor for what Ref owes) vs holdings, at one block.
+    ScanRef {
+        /// Tokens to check (default: major tokens).
+        #[arg(long = "token")]
+        tokens: Vec<String>,
+    },
     /// Replay the 2026 NEAR incidents on a local sandbox: naive vs backed vault.
     /// Needs the `chaos` feature and the wasm files (scripts/build-wasm.sh).
     Chaos {
@@ -194,6 +200,17 @@ fn main() -> Result<()> {
                 print_table(&rows);
             }
         }
+        Cmd::ScanRef { tokens } => {
+            let block = match cli.block { Some(b) => b, None => rpc.final_block()? };
+            let tokens = if tokens.is_empty() { REF_MAJOR.iter().map(|s| s.to_string()).collect() } else { tokens };
+            let rows = scan_ref(&rpc, &tokens, block)?;
+            if cli.json {
+                println!("{}", serde_json::to_string_pretty(&json!({"target": REF, "block": block, "owed_is": "floor: sum of pool reserves", "readings": rows}))?);
+            } else {
+                println!("{REF} at block {block} (owed = sum of pool reserves, a floor; user deposits are owed on top)");
+                print_table(&rows);
+            }
+        }
         Cmd::ScanIntents { limit, parallel, metadata } => {
             let block = match cli.block { Some(b) => b, None => rpc.final_block()? };
             let mut tokens = Vec::new();
@@ -312,4 +329,71 @@ fn chaos(filter: Option<&str>, vault: &str, as_json: bool) -> Result<()> {
 #[cfg(not(feature = "chaos"))]
 fn chaos(_: Option<&str>, _: &str, _: bool) -> Result<()> {
     Err(anyhow!("this build has no sandbox runner; reinstall with: cargo install --path cli --features chaos (Linux, macOS or WSL)"))
+}
+
+const REF: &str = "v2.ref-finance.near";
+const REF_MAJOR: &[&str] = &[
+    "wrap.near",
+    "usdt.tether-token.near",
+    "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
+    "token.v2.ref-finance.near",
+    "meta-pool.near",
+    "linear-protocol.near",
+    "lst.rhealab.near",
+    "nbtc.bridge.near",
+    "2260fac5e5542a773aa44fbcfedf7c193bc2c599.factory.bridge.near",
+    "dac17f958d2ee523a2206206994597c13d831ec7.factory.bridge.near",
+    "a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.factory.bridge.near",
+    "token.sweat",
+    "blackdragon.tkn.near",
+];
+
+/// Ref has no view for the total of users' internal deposits, so `owed` is the
+/// sum of every pool's reserves: a floor. held < floor means under-backed for sure.
+fn scan_ref(rpc: &Rpc, tokens: &[String], block: u64) -> Result<Vec<Reading>> {
+    let n: u64 = rpc.view(REF, "get_number_of_pools", &json!({}), block)?.as_u64().ok_or_else(|| anyhow!("bad pool count"))?;
+    let mut sums: std::collections::HashMap<String, u128> = Default::default();
+    for from in (0..n).step_by(300) {
+        let pools = rpc.view(REF, "get_pools", &json!({"from_index": from, "limit": 300}), block)?;
+        for p in pools.as_array().into_iter().flatten() {
+            let ids = p["token_account_ids"].as_array().cloned().unwrap_or_default();
+            let amounts = p["amounts"].as_array().cloned().unwrap_or_default();
+            for (t, a) in ids.iter().zip(amounts.iter()) {
+                if let (Some(t), Some(a)) = (t.as_str(), a.as_str().and_then(|a| a.parse::<u128>().ok())) {
+                    *sums.entry(t.to_string()).or_default() += a;
+                }
+            }
+        }
+    }
+    Ok(tokens
+        .iter()
+        .map(|t| {
+            let owed = sums.get(t).copied().unwrap_or(0);
+            let mut r = Reading {
+                target: REF.into(),
+                token: t.clone(),
+                block,
+                owed: Some(owed.to_string()),
+                held: None,
+                status: "error",
+                shortfall: None,
+                error: None,
+                symbol: None,
+                decimals: None,
+            };
+            match rpc.view_raw(t, "ft_balance_of", &json!({"account_id": REF}), block).ok().and_then(|b| parse_u128(&b)) {
+                Some(h) => {
+                    r.held = Some(h.to_string());
+                    if h >= owed {
+                        r.status = "backed";
+                    } else {
+                        r.status = "UNDER-BACKED";
+                        r.shortfall = Some((owed - h).to_string());
+                    }
+                }
+                None => r.error = Some("could not read held".into()),
+            }
+            r
+        })
+        .collect())
 }
