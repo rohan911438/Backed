@@ -270,6 +270,7 @@ Deploy and attest yourself: `cargo run -p backed-chaos --features sandbox --exam
 ```
 backed check <target> --token <token>... [--adapter nep245|burrow|backed] [--json] [--block <height>]
 backed scan-intents [--limit N] [--parallel N] [--metadata] [--json]
+backed scan-ref [--token <token>...] [--json]                                       # Ref Finance: pool reserves (floor) vs holdings
 backed chaos [--scenario intents|sweat|rhea] [--vault naive|backed|both] [--json]   # needs --features chaos
 backed attest <target> <token> --signer <account> [--checker <account>]             # prints the near-cli command
 backed mcp                                                                          # MCP server for AI agents (stdio, read-only)
