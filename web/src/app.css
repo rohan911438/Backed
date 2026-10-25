@@ -655,3 +655,142 @@ button.btn {
     grid-template-columns: 1fr 1fr;
   }
 }
+
+/* ---------- Build page ---------- */
+.jumpbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 22px;
+}
+.jumpbar button {
+  font: inherit;
+  font-size: 13px;
+  color: var(--text-2);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+.jumpbar button:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+.build-section {
+  scroll-margin-top: 80px;
+  margin-top: clamp(40px, 6vw, 72px);
+}
+.build-section:first-of-type {
+  margin-top: 8px;
+}
+.why-stat {
+  display: block;
+  font-family: var(--serif);
+  font-size: clamp(40px, 5vw, 56px);
+  line-height: 1;
+  color: var(--warn);
+  margin-bottom: 12px;
+}
+.motto {
+  padding: clamp(24px, 4vw, 44px);
+}
+.motto blockquote {
+  margin: 10px 0 28px;
+  font-family: var(--serif);
+  font-size: clamp(28px, 4vw, 46px);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+.principles .pillar-num {
+  position: static;
+  display: block;
+  margin-bottom: 6px;
+  color: var(--ok);
+}
+.principles h3 {
+  margin: 0 0 6px;
+}
+.principles p {
+  color: var(--text-2);
+  margin: 0;
+}
+.edge .pill {
+  display: inline-block;
+  margin-bottom: 10px;
+}
+.roadmap {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.stage-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.stage-head h3 {
+  margin: 0;
+}
+.stage-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.stage-done .stage-dot {
+  background: var(--ok);
+  box-shadow: 0 0 0 4px var(--ok-soft);
+}
+.stage-next .stage-dot {
+  background: var(--warn);
+  box-shadow: 0 0 0 4px var(--warn-soft);
+}
+.stage-done {
+  border-color: color-mix(in srgb, var(--ok) 35%, var(--border));
+}
+.stage ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-2);
+  font-size: 14px;
+  line-height: 1.7;
+}
+.start .snippet {
+  margin: 12px 0;
+  padding: 12px 14px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow-x: auto;
+  white-space: pre;
+}
+.start .eyebrow {
+  margin-bottom: 4px;
+}
+@media (max-width: 960px) {
+  .roadmap {
+    grid-template-columns: 1fr;
+  }
+}
+/* Let grid cells shrink below their code blocks' width on phones. */
+.grid-3 > *,
+.code-grid > *,
+.roadmap > * {
+  min-width: 0;
+}
+@media (max-width: 640px) {
+  .code-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .build .grid-3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

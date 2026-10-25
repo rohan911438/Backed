@@ -25,10 +25,70 @@ The same gap, a ledger that records more than the contract holds, is the bug beh
 3. Switch the filter to **issues** to see the under-backed and unreadable tokens.
 4. Open **Replays** to watch each 2026 attack break a naive vault and fail against the Backed vault.
 
+Using an AI agent? Connect the hosted MCP server and ask it whether a deposit is safe:
+
+```bash
+claude mcp add --transport http backed https://backed-near.vercel.app/api/mcp
+```
+
+---
+
+## Why we built Backed
+
+> **Never owe more than you hold.**
+> *Trust what arrived, not what you were told.*
+
+In 2026, three NEAR incidents cost users more than **$22M**, and they were all the same bug. A contract's internal books recorded tokens it didn't have: a refund callback that failed and left a credit behind (NEAR Intents, $3.8M), a swap that credited the amount the route *claimed* instead of what arrived (Rhea Finance, $18.4M), or a public callback anyone could call to collect refunds (SWEAT/HOT).
+
+This bug family exists because NEAR is **asynchronous**: a transaction is a chain of receipts, and nothing rolls back on its own when a later step fails. Every team writes its own compensation logic, and every team can get it wrong. After the Intents exploit, NEAR's own engineers checked the damage by hand, with a shell script. There was no library that made the safe pattern the default, and no public, continuous way to ask a protocol *"do you actually hold what you owe me?"*
+
+Backed is that missing layer. Three principles guide it:
+
+| Principle | What it means in practice |
+|---|---|
+| **Delivered, not claimed** | A balance grows only from tokens that verifiably arrived. A number from a caller, a router, a venue or a token's reply is a `Claimed` value and can't be credited; the compiler enforces it. |
+| **Verify, don't trust** | Anyone can check a protocol by reading its books and the token's real balance *at the same block*. No reporter, oracle or backend to trust, including us. |
+| **Prevent first, detect second** | The library stops the bug from being written. The checker, daily scan and MCP server catch it anywhere it still exists. |
+
+## What makes Backed different
+
+**Not proof of reserves: proof of backing.** Proof-of-reserves dashboards show a balance someone reports. Backed compares two numbers that the chain itself provides, the protocol's own liabilities and the token contract's real holdings, at one block height. Then it ships the code that keeps them equal.
+
+| | Audits | Proof-of-reserves dashboards | Generic monitoring | **Backed** |
+|---|---|---|---|---|
+| Prevents the bug in code | Finds it once, before launch | No | No | **Yes**: `Delivered`/`Claimed` types, capped refunds, private callbacks |
+| Checks continuously after launch | No | Yes | Yes | **Yes**: daily scan, on-chain checker, live web app |
+| Trust model | The auditor | The reporter | The vendor | **None**: both numbers read from NEAR at one block |
+| Proves the fix against real attacks | No | No | No | **Yes**: all three 2026 attacks replayed on a NEAR sandbox |
+| Usable by AI agents | No | No | Rarely | **Yes**: hosted MCP server and an agent skill |
+| Cost to a protocol | High, per release | Varies | Subscription | **Free**: open source, one view method to adopt |
+
+**Selling points, in one line each**
+
+1. **It found something real.** On mainnet, it traced 3 under-backed NEAR Intents tokens to the exact transactions, including a live tax-refund accounting flaw ([findings](docs/FINDINGS.md)).
+2. **Exact, not approximate.** Owed and held are read at the same block, so transfers in flight can't fake a shortfall or hide one.
+3. **Preventive.** Crediting an unverified amount doesn't compile. Most security tools only watch.
+4. **Proven.** 3 of 3 historical attacks break the naive vault and fail against the Backed vault, in CI on every push.
+5. **Permissionless.** Anyone can check any supported protocol, and record the result on-chain from their wallet. No sign-up, no API key.
+6. **Agent-native.** AI agents check before they deposit (MCP) and write safe NEAR contracts by default (`SKILL.md`).
+7. **A path to a standard.** One view method, [`backed_solvency`](docs/NEP-backed-solvency.md), makes any protocol verifiable with no custom adapter.
+
+**Who it's for**
+
+| Who | What they get |
+|---|---|
+| **Users and wallets** | "Is this protocol holding my tokens?" answered in one click, before a deposit |
+| **AI agents** | A tool call that returns *BACKED* or *UNDER-BACKED, don't deposit* |
+| **Contract developers** | A library that makes the async-accounting bug impossible to write, plus attack replays for CI |
+| **Protocols** | A free, public, verifiable proof of backing their users can check themselves |
+| **The NEAR ecosystem** | A shared standard so every token-holding contract can be checked the same way |
+
 ---
 
 ## Contents
 
+- [Why we built Backed](#why-we-built-backed)
+- [What makes Backed different](#what-makes-backed-different)
 - [The problem](#the-problem)
 - [How one of these bugs works](#how-one-of-these-bugs-works)
 - [What Backed does](#what-backed-does)
@@ -40,9 +100,9 @@ The same gap, a ledger that records more than the contract holds, is the bug beh
 - [The checker contract](#the-checker-contract)
 - [CLI reference](#cli-reference)
 - [Daily monitoring](#daily-monitoring)
-- [Roadmap](#roadmap)
 - [For AI coding agents](#for-ai-coding-agents)
-- [Architecture](#architecture)
+- [Architecture and workflows](#architecture-and-workflows)
+- [Roadmap](#roadmap)
 - [Repository layout](#repository-layout)
 - [Limits](#limits)
 - [Hackathon](#hackathon)
@@ -176,7 +236,7 @@ The checker is deployed on testnet for this submission. The same contract and `e
 | **Live backing** | `#/app` | Every NEP-141 token in NEAR Intents, Rhea lending, and Ref Finance (reserves floor): owed, held, coverage. **Verify** re-checks any row live at one block |
 | **Checker** | `#/app/checker` | Attestations recorded on-chain, the breach log, a free same-block **Preview**, and **Sign & record**, which sends an `attest` transaction from your wallet |
 | **Replays** | `#/app/replays` | All three attacks step by step, naive vs Backed, with owed/held bars |
-| **Build** | `#/app/build` | The six safety rules, code examples, CLI usage, and the agent skill |
+| **Build** | `#/app/build` | Why we built Backed, our principles, what makes it different, the roadmap, how to start (MCP, library, standard), and the six rules |
 
 Reading never needs a wallet; signing does. The wallet connects on **testnet**, where the checker lives. The wallet code loads after first paint, so the home page is 84 KB gzipped. Light and dark themes; works at phone width.
 
@@ -284,15 +344,6 @@ Prebuilt binaries for Linux, macOS and Windows are attached to each [GitHub rele
 
 [`monitor.yml`](.github/workflows/monitor.yml) runs once a day on GitHub Actions, free and with no keys: it scans every NEP-141 token in `intents.near`, refreshes the web app's snapshot, appends one line to [`data/backing-history.csv`](data/backing-history.csv), and **opens a GitHub issue** when a token becomes under-backed that wasn't the day before. To get the same alert in chat, add a `DISCORD_WEBHOOK_URL` secret, or `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`, in the repository settings.
 
-## Roadmap
-
-| Now | Next |
-|---|---|
-| Checker on testnet, same code ready for mainnet ([checklist](docs/MAINNET.md)) | Mainnet deploy with Intents and Rhea adapters |
-| Adapters for Intents (`mt_supply`) and Rhea (`get_asset`) | Any protocol via the [`backed_solvency` standard](docs/NEP-backed-solvency.md) (draft NEP) |
-| Daily scan, GitHub issue and optional Discord/Telegram alert on new shortfalls | Checker attestations recorded by the daily job |
-| Rust library, agent skill, MCP server (`backed mcp`) | Wallet integration: warn before a deposit into an under-backed token |
-
 ## For AI coding agents
 
 [`skill/SKILL.md`](skill/SKILL.md) is a skill for Claude Code, Codex and similar agents. When an agent writes a NEAR contract that holds tokens, it:
@@ -305,13 +356,29 @@ Prebuilt binaries for Linux, macOS and Windows are attached to each [GitHub rele
 
 ### MCP server for agents that move funds
 
-`backed mcp` is a read-only [Model Context Protocol](https://modelcontextprotocol.io) server, so any AI agent (Claude, Cursor, a wallet agent) can check a protocol before it deposits. It never signs anything.
+Backed is a read-only [Model Context Protocol](https://modelcontextprotocol.io) server, so any AI agent (Claude, Cursor, a wallet agent) can check a protocol before it deposits. It never signs anything. There are two ways to run it, with the same tools:
 
 | Tool | What it answers |
 |---|---|
-| `check_backing(target, tokens, adapter?, block?)` | Owed vs held at one block, with a verdict: *BACKED*, or *UNDER-BACKED for X: don't deposit X without investigating* |
+| `check_backing(target, tokens, adapter?, block?)` | Owed vs held at one block (`block` for past heights: local server only), with a verdict: *BACKED*, or *UNDER-BACKED for X: don't deposit X without investigating* |
 | `intents_backing_summary()` | Latest daily scan of every NEP-141 token in NEAR Intents |
 | `checker_status(target, token, network?, checker?)` | What the on-chain checker last recorded: Healthy, Suspected or Confirmed |
+
+**Hosted (nothing to install).** A public Streamable HTTP endpoint at `https://backed-near.vercel.app/api/mcp`:
+
+```bash
+claude mcp add --transport http backed https://backed-near.vercel.app/api/mcp
+```
+
+For Cursor, VS Code or any other client that takes a JSON config:
+
+```json
+{ "mcpServers": { "backed": { "url": "https://backed-near.vercel.app/api/mcp" } } }
+```
+
+Its source is [`api/mcp.ts`](api/mcp.ts), and [`server.json`](server.json) describes it for the [MCP Registry](https://registry.modelcontextprotocol.io).
+
+**Local (stdio, from the CLI).** `backed mcp`, for agents that shouldn't depend on our server or need past blocks:
 
 ```bash
 cargo install --path cli            # or download a release binary
@@ -320,29 +387,266 @@ claude mcp add backed -- backed mcp # Claude Code; other clients: command "backe
 
 Example: asked "Is it safe to deposit BATMAN into NEAR Intents?", an agent calls `check_backing` and gets *"intents.near at block 221,565,674: UNDER-BACKED for batman-4.nearlytrade.near…"*, with the cause in [findings](docs/FINDINGS.md).
 
-## Architecture
+## Architecture and workflows
+
+### 1. System architecture
+
+Backed has four layers: **prevent** (library), **prove** (attack replays), **verify** (checker, scans) and **use** (CLI, web, MCP, skill). Everything on the right reads public NEAR state; nothing holds user funds.
 
 ```mermaid
-flowchart LR
-    subgraph Build time
-        L[backed library] --> C[your contract]
-        C --> X[backed-chaos<br/>local NEAR sandbox]
-        H[evil-receiver · lying-venue · test-token] --> X
+flowchart TB
+    subgraph PREVENT["Prevent · build time"]
+        LIB["backed crate<br/>Ledger · Delivered/Claimed · cap_refund · LogBudget"]
+        SKILL["skill/SKILL.md<br/>AI coding agents"]
+        SKILL -.writes contracts with.-> LIB
     end
-    subgraph On chain
-        C -- backed_solvency --> K[Checker contract]
-        P[Intents · Rhea] -- mt_supply / get_asset --> K
-        TK[token ft_balance_of] --> K
+    subgraph PROVE["Prove · CI"]
+        CHAOS["backed-chaos<br/>failure catalog F1–F8 + invariant oracle"]
+        SANDBOX["local NEAR sandbox<br/>naive-vault vs backed-vault<br/>evil-receiver · lying-venue · test-token"]
+        CHAOS --> SANDBOX
     end
-    subgraph Clients
-        CLI[backed CLI] --> P
-        WEB[web app + wallet] --> K
-        WEB --> P
-        AG[AI agents via SKILL.md] --> CLI
+    subgraph CHAIN["NEAR mainnet / testnet"]
+        PROTO["Protocols<br/>intents.near · Rhea lending · Ref · any backed_solvency contract"]
+        TOKENS["NEP-141 token contracts<br/>ft_balance_of(protocol)"]
+        CHECKER["Checker contract<br/>attest · get_status · list_breaches"]
+        CHECKER -- "owed: mt_supply / get_asset / backed_solvency" --> PROTO
+        CHECKER -- "held: ft_balance_of" --> TOKENS
+    end
+    subgraph USE["Use · clients"]
+        CLI["backed CLI<br/>check · scan-intents · scan-ref · chaos · mcp"]
+        WEB["Web app (Vercel)<br/>live backing · checker · replays"]
+        MCP["Hosted MCP server<br/>/api/mcp"]
+        CRON["Daily scan<br/>GitHub Actions"]
+    end
+    LIB --> CHAOS
+    LIB -. "deployed contracts expose backed_solvency" .-> PROTO
+    CLI & WEB & MCP & CRON -- "JSON-RPC views at one block" --> PROTO
+    CLI & WEB & MCP & CRON --> TOKENS
+    WEB -- "wallet-signed attest" --> CHECKER
+    CRON -- "snapshot + history CSV" --> WEB
+    MCP -- "reads daily snapshot" --> WEB
+```
+
+### 2. How a backing check works
+
+The one idea behind every reading: ask the chain for **one final block height**, then read both numbers *at that height*. Two reads at different heights could disagree only because a transfer was in flight.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Client (CLI / web / MCP)
+    participant RPC as NEAR RPC
+    participant P as Protocol (e.g. intents.near)
+    participant T as Token (e.g. usdt.tether-token.near)
+    C->>RPC: block(finality = final)
+    RPC-->>C: height h
+    par same block h
+        C->>P: view mt_supply("nep141:token") at h
+        P-->>C: owed
+    and
+        C->>T: view ft_balance_of(protocol) at h
+        T-->>C: held
+    end
+    alt held ≥ owed
+        Note over C: backed (coverage = held / owed)
+    else held < owed
+        Note over C: UNDER-BACKED, shortfall = owed − held
     end
 ```
 
+| Protocol | `owed` comes from | Precision |
+|---|---|---|
+| NEAR Intents | `mt_supply("nep141:<token>")` | Exact |
+| Rhea lending | `get_asset(token)`: supplied + reserved + protocol fee − borrowed | Exact |
+| Ref Finance | Sum of `get_pools` reserves over all 8,991 pools | Floor (user deposits are owed on top) |
+| Any adopter | `backed_solvency(token).owed` | Exact |
+
+### 3. On-chain attestation (checker contract)
+
+Anyone can record a reading on-chain. The checker reads both numbers itself through cross-contract views, so the caller can't influence the result.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as Anyone (wallet)
+    participant K as Checker
+    participant P as Protocol
+    participant T as Token
+    U->>K: attest(target, token) + 0.005 NEAR
+    par
+        K->>P: owed view (adapter: Nep245 / Burrow / BackedStandard)
+    and
+        K->>T: ft_balance_of(target)
+    end
+    P-->>K: owed
+    T-->>K: held
+    K->>K: on_attest (#[private]): bounded result reads, classify
+    K->>K: record status · log breach only on state change
+    K-->>U: refund deposit − storage used
+    Note over K: emits event: attestation / breach_suspected / breach_confirmed
+```
+
+Cross-contract reads land in slightly different blocks, so one bad reading isn't enough to call a breach:
+
+```mermaid
+stateDiagram-v2
+    [*] --> Healthy: held ≥ owed
+    [*] --> Suspected: held < owed
+    Healthy --> Suspected: held < owed
+    Suspected --> Suspected: still short, < 30 blocks later
+    Suspected --> Confirmed: still short, ≥ 30 blocks after first seen
+    Suspected --> Healthy: held ≥ owed
+    Confirmed --> Healthy: held ≥ owed
+    Confirmed --> Confirmed: still short
+```
+
+### 4. Inside a Backed contract: the deposit and withdraw lifecycle
+
+The library's rules (R1–R6) placed on the actual message flow. The safe order: **credit only on delivery, debit before sending, settle in a private callback that can't panic.**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor A as User
+    participant T as Token
+    participant V as Vault on backed::Ledger
+    Note over A,V: Deposit
+    A->>T: ft_transfer_call(vault, amount, msg)
+    T->>V: ft_on_transfer(sender, amount, msg)
+    alt token not registered (R5)
+        V-->>T: return amount (refund everything)
+    else registered
+        V->>V: Delivered::from_token_transfer → ledger.credit (R1)
+        V-->>T: return 0 unused
+    end
+    Note over A,V: Withdraw
+    A->>V: withdraw(token, x)
+    V->>V: ledger.debit_for_withdraw(Claimed x) — owed drops first (R4)
+    V->>T: ft_transfer(user, x)
+    T-->>V: result
+    V->>V: #[private] settle_withdraw (R2) — never panics (R3)
+    alt transfer failed
+        V->>V: re-credit x (owed restored)
+    end
+    Note over V: invariant after every step: owed ≤ held
+```
+
+How amounts are typed, so the Rhea-style bug can't compile:
+
+```mermaid
+flowchart LR
+    ARG["caller argument<br/>msg field<br/>route minimum<br/>venue's reply"] --> CL["Claimed&lt;u128&gt;"]
+    FT["ft_on_transfer from a<br/>registered token"] --> DL["Delivered&lt;u128&gt;"]
+    CB["own callback's<br/>promise result"] --> DL
+    CL --> CHK["risk checks,<br/>limits, slippage"]
+    CL -. "no conversion exists" .-x CR
+    DL --> CR["ledger.credit()<br/>balance grows"]
+```
+
+### 5. Proving it: the attack replay pipeline
+
+```mermaid
+flowchart LR
+    S["Scenario<br/>(intents · sweat · rhea)"] --> D["Deploy on a fresh sandbox:<br/>token, vault, attacker helpers"]
+    D --> STEP["Run the attack as<br/>real transactions"]
+    STEP --> O{"Oracle after each step:<br/>owed ≤ held?"}
+    O -- "yes" --> STEP
+    O -- "no" --> BR["BROKEN + shortfall<br/>+ attacker gain"]
+    STEP -- "done" --> RES["Result per vault"]
+    RES --> N["naive-vault: BROKEN expected"]
+    RES --> B["backed-vault: SAFE required<br/>(CI fails otherwise)"]
+```
+
+### 6. Daily monitoring workflow
+
+```mermaid
+flowchart TD
+    CRON["06:17 UTC daily<br/>(GitHub Actions)"] --> BUILD["Build backed CLI"]
+    BUILD --> SCAN["scan-intents: all 370 NEP-141 tokens<br/>owed vs held at one block"]
+    SCAN --> DIFF{"New under-backed<br/>tokens since yesterday?"}
+    SCAN --> SNAP["Update web snapshot<br/>+ data/backing-history.csv"]
+    SNAP --> PUSH["Commit to main → Vercel redeploys"]
+    DIFF -- yes --> ISSUE["Open GitHub issue"]
+    DIFF -- yes --> CHAT["Discord / Telegram alert<br/>(if secrets set)"]
+    DIFF -- no --> DONE["Done"]
+```
+
+### 7. AI agent workflow (MCP)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor H as Person
+    participant AG as AI agent (Claude, Cursor, wallet agent)
+    participant M as Backed MCP server
+    participant N as NEAR RPC
+    H->>AG: "Deposit 500 USDT into NEAR Intents"
+    AG->>M: check_backing(intents.near, [usdt.tether-token.near])
+    M->>N: final block h, mt_supply + ft_balance_of at h
+    N-->>M: owed, held
+    M-->>AG: verdict: BACKED / UNDER-BACKED (+ numbers, block)
+    alt BACKED
+        AG->>H: Safe by backing check at block h, proceeding
+    else UNDER-BACKED
+        AG->>H: Refuses, explains the shortfall and links the cause
+    end
+```
+
+### 8. Developer workflow: from idea to verifiable contract
+
+```mermaid
+flowchart LR
+    I["Idea: a contract<br/>that holds tokens"] --> W["Write it on backed::Ledger<br/>(or let an agent with SKILL.md)"]
+    W --> U["Unit tests:<br/>owed ≤ held asserted<br/>on every change"]
+    U --> R["backed chaos in CI:<br/>replay the 2026 attacks"]
+    R --> DEP["Deploy to NEAR"]
+    DEP --> REG["Expose backed_solvency<br/>+ register_self on the checker"]
+    REG --> V["Verifiable by anyone:<br/>web · CLI · MCP · on-chain"]
+```
+
 Full design: [`Idea/03-architecture.md`](Idea/03-architecture.md).
+
+## Roadmap
+
+From one protocol to a NEAR standard.
+
+```mermaid
+timeline
+    title Backed roadmap
+    Shipped (Oct 2026) : backed library and six rules
+                       : 3 attack replays in CI
+                       : Checker on testnet
+                       : Live backing for Intents, Rhea, Ref
+                       : Daily scan with issue and chat alerts
+                       : MCP server (hosted and CLI), agent skill
+                       : Draft NEP for backed_solvency
+    Next (Nov 2026)    : Checker on mainnet with Intents and Rhea adapters
+                       : Share the tax-refund finding with NEAR Intents
+                       : Daily job records attestations on-chain
+                       : Open the NEP discussion with protocol teams
+    Later (2027)       : Wallet warning before depositing into an under-backed token
+                       : Protocols self-register through backed_solvency
+                       : Checker ownership to a multisig or DAO
+                       : Chaos harness for any contract's wasm
+```
+
+| Phase | Item | Status |
+|---|---|---|
+| **Shipped** | `backed` library: `Delivered`/`Claimed`, capped refunds, log budget, reconcile | ✅ |
+| | Three 2026 attacks replayed on a NEAR sandbox, in CI | ✅ |
+| | Checker contract on testnet, abuse-resistant (pays own storage, logs on state change) | ✅ |
+| | Live backing for NEAR Intents, Rhea lending, Ref Finance (floor) | ✅ |
+| | Daily scan, history CSV, GitHub issue + Discord/Telegram alerts | ✅ |
+| | MCP server, hosted and in the CLI; agent skill | ✅ |
+| | Draft NEP: [`backed_solvency`](docs/NEP-backed-solvency.md) | ✅ |
+| **Next** | Checker on mainnet ([checklist](docs/MAINNET.md)) | Ready, needs ~2 NEAR |
+| | Responsible disclosure of the tax-refund finding to NEAR Intents | Planned |
+| | Daily job also records attestations on-chain | Planned |
+| | NEP discussion with NEAR protocol teams | Planned |
+| **Later** | Wallet integration: warn before depositing into an under-backed token | Idea |
+| | Protocols self-register via `backed_solvency` | Contract support exists |
+| | Checker ownership to a multisig or DAO (`set_owner`) | Contract support exists |
+| | Chaos harness that runs the replays against any contract's wasm | Idea |
 
 ## Repository layout
 
@@ -353,7 +657,8 @@ crates/backed-chaos/    failure catalog F1–F8, invariant oracle, three replays
 contracts/checker/      checker contract (Intents, Rhea and Backed-standard adapters)
 contracts/examples/     naive-vault (the three bug patterns, on purpose) and backed-vault
 contracts/helpers/      test-token, evil-receiver, lying-venue (used by the replays only)
-cli/                    backed CLI: check, scan-intents, chaos, attest, mcp
+cli/                    backed CLI: check, scan-intents, scan-ref, chaos, attest, mcp
+api/mcp.ts              hosted MCP server (Vercel function at /api/mcp); server.json for the MCP Registry
 web/                    Vite + React app: home, live backing, checker (wallet), replays, build
 skill/SKILL.md          instructions for AI coding agents
 docs/                   draft NEP for backed_solvency, mainnet deploy checklist
