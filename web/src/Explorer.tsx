@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { REPO } from "./config";
 import { checkToken, coverage, finalBlock, formatUnits, tokenMeta, type Adapter, type Reading } from "./near";
 
 const RHEA_TOKENS = [
@@ -197,9 +198,13 @@ export default function Explorer({ snapshot }: Props) {
         )}
       </div>
       <p className="footnote">
-        Under-backed means the token contract reports less than the protocol's ledger records. For small launchpad
-        tokens this can come from burns or transfer fees the ledger doesn't see. It's a finding to investigate, not proof
-        of an exploit.
+        Under-backed means the token contract reports less than the protocol's ledger records. We traced all three to
+        their transactions: two memecoins take a sell tax, then report it to Intents as refunded, and Intents credits it;
+        a test token reported a deposit that never moved tokens.{" "}
+        <a href={`${REPO}/blob/main/docs/FINDINGS.md`} target="_blank" rel="noreferrer">
+          Read the findings
+        </a>
+        .
       </p>
     </section>
   );

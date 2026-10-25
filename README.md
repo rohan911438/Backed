@@ -11,7 +11,7 @@ The same gap, a ledger that records more than the contract holds, is the bug beh
 | | |
 |---|---|
 | **Live app** | **<https://backed-near.vercel.app>**: live backing for every Intents token. No wallet needed to read. |
-| **Live finding** | 362 of 370 NEP-141 tokens in `intents.near` fully backed; 3 under-backed ([details](#mainnet-readings-2026-10-23)) |
+| **Live finding** | 362 of 370 NEP-141 tokens in `intents.near` fully backed; 3 under-backed, **each traced to the transaction that caused it** ([findings](docs/FINDINGS.md)) |
 | **Replays** | 3 of 3 attacks break the naive vault; 3 of 3 are blocked by the Backed vault |
 | **Checker contract** | [`simplekilt7490.testnet`](https://testnet.nearblocks.io/address/simplekilt7490.testnet): records backing on-chain, signed from your wallet |
 | **Network** | Mainnet protocols are **read** live (read-only). The checker contract is deployed on **testnet**. |
@@ -145,7 +145,7 @@ Real output (`backed chaos --scenario intents`):
 
 Backing = what the protocol holds (`ft_balance_of`) vs what it owes (its own views), **read at the same block height**, so in-flight transfers can't skew the result.
 
-- **NEAR Intents** (`intents.near`, block 221,256,203): of 370 NEP-141 tokens, **362 fully backed**, **3 under-backed** (`ninu-4.nearlytrade.near`, `batman-4.nearlytrade.near`, test token `nvdastest.optimal-bone.near`), 5 unreadable (broken token contracts). The shortfall fits burns or transfer fees the ledger doesn't see. This is a finding to investigate, not an exploit.
+- **NEAR Intents** (`intents.near`, block 221,256,203): of 370 NEP-141 tokens, **362 fully backed**, **3 under-backed** (`ninu-4.nearlytrade.near`, `batman-4.nearlytrade.near`, test token `nvdastest.optimal-bone.near`), 5 unreadable (broken token contracts). We traced each shortfall to the transaction that created it ([findings](docs/FINDINGS.md)). Two memecoins charge a sell tax and then tell Intents the taxed part was "refunded"; Intents credits that refund although no tokens came back, so every taxed sell grows the gap by exactly the tax. The test token reported a deposit that never moved tokens. Small amounts, same bug as Rhea: a ledger crediting what it was told, not what arrived.
 - **Rhea lending** (`contract.main.burrow.near`): every major token fully backed.
 
 After the October exploit, NEAR's engineers wrote this exact check by hand: [`scripts/list_nep245_tokens.sh`](https://github.com/near/intents/blob/0c1a530c8da337008e28baa9987a816249d707e6/scripts/list_nep245_tokens.sh), added in the same commit as the bug's regression test, compares `mt_supply` with `intents.near`'s real balance on each token at one block height. Backed turns that one-off script into a product: it runs every day ([daily scan](#daily-monitoring)), can be recorded on-chain by anyone (the checker), works for any protocol that adopts a [standard view](docs/NEP-backed-solvency.md), and comes with a library that prevents the drift in the first place.

@@ -13,7 +13,7 @@ Pitch order: **data first, then the bug, then the fix.** The judge should see a 
 | Time | Show | Say |
 |---|---|---|
 | 0:00–0:20 | backed-near.vercel.app home: dot field, "362 of 370 tokens backed" | "Does NEAR Intents hold every token it owes? Each dot is a token, read from mainnet at one block. Green is backed, amber isn't." |
-| 0:20–0:40 | App → Live backing → filter **issues** → press **Verify** on `ninu-4.nearlytrade.near` | "Three are under-backed. Press Verify and your browser re-reads both numbers from mainnet right now. No server, no trust in us." |
+| 0:20–0:40 | App → Live backing → filter **issues** → press **Verify** on `ninu-4.nearlytrade.near`, then open docs/FINDINGS.md | "Three are under-backed. Verify re-reads both numbers from mainnet right now. And we traced why: this memecoin takes a 3% sell tax, tells Intents it was refunded, and Intents credits a refund that never came back. One transaction, 1,133 tokens from nothing." |
 | 0:40–1:00 | Home → Problem section, incident cards with source links | "This gap caused $22M+ of losses this year. Intents' callback failed on a log limit and the books kept a balance the tokens had refunded. NEAR's own regression test says so; it's linked." |
 | 1:00–1:10 | NEAR's `list_nep245_tokens.sh` on GitHub | "After that, NEAR's engineers wrote this check by hand. Backed runs it every day and records it on-chain." |
 | 1:10–1:40 | App → Replays → Intents: naive vs Backed side by side | "We replay each attack on a real local NEAR sandbox. The naive vault ends up owing 100 more than it holds. The Backed vault refuses the withdrawal." |
@@ -66,4 +66,4 @@ No. It stops the "owe more than you hold" family and makes anything else that dr
 The checker contract is on testnet; mainnet protocols are read live. The same code deploys to mainnet with one command after a free cost preflight (docs/MAINNET.md).
 
 **"Did you find something real?"**
-Three small tokens in Intents (two memecoins and a test token) are under-backed. That's likely burns or transfer fees that Intents' ledger doesn't see: the same class, small scale. We report it as a finding, not an exploit.
+Yes, and we traced it to the transaction. Two memecoins charge a 1–3% sell tax and then tell Intents the taxed part was "refunded". Intents credits that refund although nothing came back, so every taxed sell through Intents grows the gap by exactly the tax (tx `hmKEgaX2…`: 37,793.33 NINU sold, 1,133.80 credited from nothing). The amounts are small, but the mechanism is Rhea's: a ledger crediting what it was told, not what arrived. Details: docs/FINDINGS.md.
