@@ -147,6 +147,9 @@ Backing = what the protocol holds (`ft_balance_of`) vs what it owes (its own vie
 
 - **NEAR Intents** (`intents.near`, block 221,256,203): of 370 NEP-141 tokens, **362 fully backed**, **3 under-backed** (`ninu-4.nearlytrade.near`, `batman-4.nearlytrade.near`, test token `nvdastest.optimal-bone.near`), 5 unreadable (broken token contracts). We traced each shortfall to the transaction that created it ([findings](docs/FINDINGS.md)). Two memecoins charge a sell tax and then tell Intents the taxed part was "refunded"; Intents credits that refund although no tokens came back, so every taxed sell grows the gap by exactly the tax. The test token reported a deposit that never moved tokens. Small amounts, same bug as Rhea: a ledger crediting what it was told, not what arrived.
 - **Rhea lending** (`contract.main.burrow.near`): every major token fully backed.
+- **Ref Finance** (`v2.ref-finance.near`, block 221,566,295): all 8,991 pools read at one block. For 13 major tokens, holdings are above the pools' total reserves. Ref has no view for the total of users' internal deposits, so this is a **floor** check: it can prove a shortfall, not full backing (`backed scan-ref`).
+
+**Which NEAR protocols can be checked at all?** We listed the view methods of the largest ones. Intents (`mt_supply`) and Rhea lending (`get_asset`) expose a total of what they owe per token, so they can be checked exactly. Ref Finance exposes pool reserves but not user deposits (floor only). Ref DCL and Orderly expose only per-user balances, with no total. Liquid staking (LiNEAR, Meta Pool, rNEAR) holds native NEAR in validators, so token backing doesn't apply. Most protocols can't be verified by an outsider today; that's what the [`backed_solvency` standard](docs/NEP-backed-solvency.md) is for.
 
 After the October exploit, NEAR's engineers wrote this exact check by hand: [`scripts/list_nep245_tokens.sh`](https://github.com/near/intents/blob/0c1a530c8da337008e28baa9987a816249d707e6/scripts/list_nep245_tokens.sh), added in the same commit as the bug's regression test, compares `mt_supply` with `intents.near`'s real balance on each token at one block height. Backed turns that one-off script into a product: it runs every day ([daily scan](#daily-monitoring)), can be recorded on-chain by anyone (the checker), works for any protocol that adopts a [standard view](docs/NEP-backed-solvency.md), and comes with a library that prevents the drift in the first place.
 
@@ -170,7 +173,7 @@ The checker is deployed on testnet for this submission. The same contract and `e
 | Page | Route | What it does |
 |---|---|---|
 | **Home** | `#/` | The problem, the Intents replay side by side, and **Connect wallet** (MyNearWallet or Meteor) to enter the app |
-| **Live backing** | `#/app` | Every NEP-141 token in NEAR Intents and Rhea lending: owed, held, coverage. **Verify** re-checks any row live at one block |
+| **Live backing** | `#/app` | Every NEP-141 token in NEAR Intents, Rhea lending, and Ref Finance (reserves floor): owed, held, coverage. **Verify** re-checks any row live at one block |
 | **Checker** | `#/app/checker` | Attestations recorded on-chain, the breach log, a free same-block **Preview**, and **Sign & record**, which sends an `attest` transaction from your wallet |
 | **Replays** | `#/app/replays` | All three attacks step by step, naive vs Backed, with owed/held bars |
 | **Build** | `#/app/build` | The six safety rules, code examples, CLI usage, and the agent skill |
