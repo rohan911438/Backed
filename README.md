@@ -278,7 +278,7 @@ Prebuilt binaries for Linux, macOS and Windows are attached to each [GitHub rele
 
 ## Daily monitoring
 
-[`monitor.yml`](.github/workflows/monitor.yml) runs once a day on GitHub Actions, free and with no keys: it scans every NEP-141 token in `intents.near`, refreshes the web app's snapshot, appends one line to [`data/backing-history.csv`](data/backing-history.csv), and **opens a GitHub issue** when a token becomes under-backed that wasn't the day before.
+[`monitor.yml`](.github/workflows/monitor.yml) runs once a day on GitHub Actions, free and with no keys: it scans every NEP-141 token in `intents.near`, refreshes the web app's snapshot, appends one line to [`data/backing-history.csv`](data/backing-history.csv), and **opens a GitHub issue** when a token becomes under-backed that wasn't the day before. To get the same alert in chat, add a `DISCORD_WEBHOOK_URL` secret, or `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`, in the repository settings.
 
 ## Roadmap
 
@@ -286,8 +286,8 @@ Prebuilt binaries for Linux, macOS and Windows are attached to each [GitHub rele
 |---|---|
 | Checker on testnet, same code ready for mainnet ([checklist](docs/MAINNET.md)) | Mainnet deploy with Intents and Rhea adapters |
 | Adapters for Intents (`mt_supply`) and Rhea (`get_asset`) | Any protocol via the [`backed_solvency` standard](docs/NEP-backed-solvency.md) (draft NEP) |
-| Daily scan + GitHub issue on new shortfalls | Alerts to Telegram/Discord; checker attestations from the daily job |
-| Rust library for near-sdk contracts | Same rules as a lint in the agent skill for every NEAR contract an AI agent writes |
+| Daily scan, GitHub issue and optional Discord/Telegram alert on new shortfalls | Checker attestations recorded by the daily job |
+| Rust library, agent skill, MCP server (`backed mcp`) | Wallet integration: warn before a deposit into an under-backed token |
 
 ## For AI coding agents
 

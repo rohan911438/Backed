@@ -65,3 +65,23 @@ jobs:
             echo "Re-check any of them: \`backed check intents.near --token <token>\`. Under-backed can come from burns or transfer fees; treat it as a finding to investigate."
           } > body.md
           gh issue create --title "Newly under-backed in intents.near (block ${{ steps.diff.outputs.block }})" --body-file body.md
+      - name: Alert Discord / Telegram (optional)
+        # Set any of these repository secrets to turn alerts on:
+        #   DISCORD_WEBHOOK_URL, or TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID
+        if: steps.diff.outputs.added != '0'
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          MSG=$(printf 'Backed: newly under-backed in intents.near at block %s\n%s\n%s' \
+            "${{ steps.diff.outputs.block }}" "$(sed 's/^/- /' added.txt)" \
+            "https://github.com/${{ github.repository }}/issues")
+          if [ -n "$DISCORD_WEBHOOK_URL" ]; then
+            jq -n --arg c "$MSG" '{content: $c}' | curl -sf -H 'content-type: application/json' -d @- "$DISCORD_WEBHOOK_URL" && echo "discord: sent"
+          fi
+          if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
+            curl -sf "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+              --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" --data-urlencode "text=${MSG}" > /dev/null && echo "telegram: sent"
+          fi
+          [ -n "$DISCORD_WEBHOOK_URL$TELEGRAM_BOT_TOKEN" ] || echo "no alert secrets set; skipped"
