@@ -26,6 +26,8 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
+      - name: System libraries for cargo-near
+        run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
       - uses: cargo-bins/cargo-binstall@main
       - name: Install cargo-near
         run: cargo binstall --no-confirm cargo-near@0.22.0
