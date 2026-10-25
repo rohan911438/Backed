@@ -1,20 +1,29 @@
 # Backed
 
-**Verified settlement for NEAR: a contract should never owe more than it holds.**
+**Does NEAR Intents actually hold every token it says you own? Backed checks, live, token by token.**
 
-Backed prevents, tests for and detects one NEAR-specific bug family: a contract's internal ledger drifting away from the tokens it actually holds. That family caused **$22M+ of NEAR losses in 2026** (NEAR Intents, Rhea Finance, SWEAT/HOT).
+NEAR Intents keeps an internal ledger of user balances. The tokens behind those balances sit on separate token contracts. Backed reads both **at the same block** and compares them: what the protocol **owes** vs what it **holds**.
 
-It ships as a Rust library for contracts, a chaos-testing harness that replays the real attacks on a local NEAR sandbox, an on-chain checker contract anyone can call, a CLI, a web app with wallet sign-in, and a skill file for AI coding agents.
+On mainnet, of 370 NEP-141 tokens in `intents.near`, **362 are fully backed, 3 are under-backed and 5 can't be read**. Anyone can re-run the check from the [web app](https://backed-near.vercel.app) or the CLI.
+
+The same gap, a ledger that records more than the contract holds, is the bug behind three 2026 NEAR incidents worth **$22M+ exploited** ([sources below](#the-problem)). So Backed also ships the fix: a Rust library that stops contracts from writing that bug, and a sandbox harness that replays all three attacks to prove it.
 
 | | |
 |---|---|
-| **Status** | Working end to end on **NEAR testnet** (checker contract + wallet-signed attestations). Mainnet protocols are read live, read-only. |
-| **Live app** | **<https://backed-near.vercel.app>** (connect a testnet wallet to sign attestations) |
-| **Checker contract** | [`simplekilt7490.testnet`](https://testnet.nearblocks.io/address/simplekilt7490.testnet) |
+| **Live app** | **<https://backed-near.vercel.app>**: live backing for every Intents token. No wallet needed to read. |
+| **Live finding** | 362 of 370 NEP-141 tokens in `intents.near` fully backed; 3 under-backed ([details](#mainnet-readings-2026-10-23)) |
 | **Replays** | 3 of 3 attacks break the naive vault; 3 of 3 are blocked by the Backed vault |
-| **Live finding** | 362 of 370 NEP-141 tokens in `intents.near` fully backed; 3 under-backed |
+| **Checker contract** | [`simplekilt7490.testnet`](https://testnet.nearblocks.io/address/simplekilt7490.testnet): records backing on-chain, signed from your wallet |
+| **Network** | Mainnet protocols are **read** live (read-only). The checker contract is deployed on **testnet**. |
 | **Tests** | 34 unit tests + 3 sandbox replays, run in CI on every push |
-| **Tracks** | AI Security & Defense · Unstoppable DeFi · Open Innovation |
+| **Tracks** | Open Innovation · Unstoppable DeFi |
+
+### Try it in one minute
+
+1. Open <https://backed-near.vercel.app> → **Explore without a wallet**. You'll see every Intents token with owed, held and coverage.
+2. Click **Verify** on any row. Your browser re-reads both numbers from NEAR mainnet RPC at one block.
+3. Switch the filter to **issues** to see the under-backed and unreadable tokens.
+4. Open **Replays** to watch each 2026 attack break a naive vault and fail against the Backed vault.
 
 ---
 
@@ -44,11 +53,21 @@ On NEAR, calls between contracts are **asynchronous**. Each step is a separate r
 
 | Incident | Loss | What went wrong | Backed's rule |
 |---|---|---|---|
-| **NEAR Intents** (2026-10-01) | $3.8M | Refund log grew past NEAR's 16,384-byte limit, so `mt_resolve_deposit` failed. The token refunded the deposit, but the balance stayed recorded. | Resolve callbacks can't fail: refunds capped first, logs budgeted. |
-| **Rhea Finance** (2026-04-16) | $18.4M | Margin trading credited the amount a swap route *claimed*, not what arrived. | Balances grow only from `Delivered` amounts. Crediting a `Claimed` one doesn't compile. |
-| **SWEAT / HOT** (Fireblocks zero-day) | 8.5M SWEAT | A refund callback anyone could call paid refunds nobody was owed. | Every callback is `#[private]`; refunds capped by deposit and balance. |
+| **NEAR Intents** (2026-10-01) | $3.8M | Over 23 failed deposits, a receiver asked for huge refunds. The refund log grew past NEAR's log limit (16,384 bytes), so `mt_resolve_deposit` failed. The token refunded the deposit, but the balance stayed recorded. | Resolve callbacks can't fail: refunds capped first, logs budgeted. |
+| **Rhea Finance** (2026-04-16) | $18.4M | Margin trading validated a position against the swap route's *claimed* minimum output (summed across hops), then accepted a delivered amount about 4 million times smaller without comparing the two. | Balances and risk checks use only `Delivered` amounts. Crediting a `Claimed` one doesn't compile. |
+| **SWEAT / HOT** (late April 2026) | 8.5M SWEAT (~$170–250K) | The token's `ft_resolve_transfer` refund callback lacked `#[private]`, so anyone could call it and take refunds nobody was owed. | Every callback is `#[private]`; refunds capped by deposit and balance. |
 
-On Ethereum a transaction is all-or-nothing, so this family barely exists there. It's specific to NEAR's async model, and so is the fix. Sources: [`Idea/01-problem-and-evidence.md`](Idea/01-problem-and-evidence.md).
+On Ethereum a transaction is all-or-nothing, so this family barely exists there. It's specific to NEAR's async model, and so is the fix.
+
+These are bugs in individual apps, not in the NEAR protocol. NEAR's async design is deliberate (it's how NEAR scales), and its docs warn about callbacks. Each team fixed its own contract after the fact. What's missing is tooling that makes the safe pattern the default, plus a way for anyone to check backing continuously. That's the gap Backed fills.
+
+**Sources**
+
+- NEAR Intents: [regression test reproducing the failed `mt_resolve_deposit`](https://github.com/near/intents/commit/0c1a530c8da337008e28baa9987a816249d707e6) (PR #362, NEAR's own code); [fix removing deposit notifications](https://github.com/near/intents/commit/16d04f6ec4401263f8914638710260da50bb46b0) (PR #374); [official postmortem by Alex Shevchenko](https://x.com/AlexAuroraDev/status/2111124226962870770); [Crypto Times, 2026-10-17](https://www.cryptotimes.io/2026/10/17/near-intents-traces-3-8m-exploit-to-smart-contract-deposit-bug/); [walkthrough of the postmortem](https://thecoding.substack.com/p/near-intents-ghost-fund-postmortem). The team reports the funds were recovered.
+- Rhea Finance: [The Block, post-mortem puts losses at $18.4M](https://www.theblock.co/news/ecosystems/2026-04-17-rhea-finance-post-mortem-exploit-losses-18-4-million-double-initial-estimates-397961); [Rekt, code-level analysis](https://rekt.news/rhea-finance-rekt). Part of the funds were returned or frozen.
+- SWEAT / HOT: [Fireblocks, "Hunting Zero-Days at Machine Speed"](https://www.fireblocks.com/blog/near-zero-day-sweat-hot-token-exploit); [Fireblocks Q2 2026 threat report](https://www.fireblocks.com/report/crypto-threat-report-q2-2026). HOT was patched the same day.
+
+More detail: [`Idea/01-problem-and-evidence.md`](Idea/01-problem-and-evidence.md).
 
 ## How one of these bugs works
 
@@ -92,7 +111,7 @@ Each incident runs twice on a local NEAR sandbox: against [`naive-vault`](contra
 |---|---|---|---|
 | **Intents**: absurd refund makes the resolve panic | **BROKEN**: owes 1000, holds 900; attacker **+100** | **SAFE**: owed = held at every step; gain 0 | Refund capped to the deposit, so the resolve can't panic |
 | **SWEAT/HOT**: failing call chained into a public resolver | **BROKEN**: owes 1000, holds 900; attacker **+100** | **SAFE**: gain 0 | `#[private]` resolver rejects the outside call |
-| **Rhea**: venue delivers 1, reports 900, route claims 900 | **BROKEN**: owes 1001, holds 101; attacker **+800** | **SAFE**: attacker loses 99 | Output credited only when the token delivers it |
+| **Rhea** (simplified): venue delivers 1, reports 900, route claims 900 | **BROKEN**: owes 1001, holds 101; attacker **+800** | **SAFE**: attacker loses 99 | Output credited only when the token delivers it |
 
 Real output (`backed chaos --scenario intents`):
 
@@ -309,7 +328,7 @@ Idea/                   design documents, incl. user workflows
 ## Hackathon
 
 - **Event:** NEAR HACKATHON, Nov 1–14, 2026 (rules in [`HACKATHON.md`](HACKATHON.md))
-- **Tracks:** AI Security & Defense, Unstoppable DeFi, Open Innovation
+- **Tracks:** Open Innovation, Unstoppable DeFi
 - **NEAR features used:** async receipts and callbacks, NEP-141 / 145 / 245 / 297, cross-contract views, near-sdk 5.x, near-workspaces sandbox, wallet-selector
 
 ### Design documents

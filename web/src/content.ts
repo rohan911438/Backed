@@ -7,20 +7,30 @@ export const INCIDENTS = [
     loss: "$3.8M",
     what: "A refund log passed NEAR's 16,384-byte limit, so the resolve callback failed. The token was refunded; the balance stayed recorded.",
     fix: "Refunds capped first, log size measured on capped values, resolve can't panic.",
+    sources: [
+      { label: "NEAR's regression test", url: "https://github.com/near/intents/commit/0c1a530c8da337008e28baa9987a816249d707e6" },
+      { label: "Postmortem", url: "https://x.com/AlexAuroraDev/status/2111124226962870770" },
+      { label: "Crypto Times", url: "https://www.cryptotimes.io/2026/10/17/near-intents-traces-3-8m-exploit-to-smart-contract-deposit-bug/" },
+    ],
   },
   {
     name: "Rhea Finance",
     date: "Apr 16, 2026",
     loss: "$18.4M",
-    what: "Margin trading credited the amount a swap route claimed. The protocol received about 0.00002% of it.",
-    fix: "Balances only grow from Delivered amounts. Crediting a claimed number doesn't compile.",
+    what: "Margin trading validated positions against the swap route's claimed output, then accepted a delivered amount about 4 million times smaller.",
+    fix: "Balances and checks use only Delivered amounts. Crediting a claimed number doesn't compile.",
+    sources: [
+      { label: "The Block", url: "https://www.theblock.co/news/ecosystems/2026-04-17-rhea-finance-post-mortem-exploit-losses-18-4-million-double-initial-estimates-397961" },
+      { label: "Rekt analysis", url: "https://rekt.news/rhea-finance-rekt" },
+    ],
   },
   {
     name: "SWEAT & HOT",
-    date: "Zero-day, Fireblocks",
+    date: "Late Apr 2026",
     loss: "8.5M SWEAT",
-    what: "A refund callback anyone could call paid out refunds nobody was owed.",
+    what: "The token's refund callback wasn't #[private], so anyone could call it and take refunds nobody was owed.",
     fix: "Resolvers are private and refunds are capped by the deposit and the balance.",
+    sources: [{ label: "Fireblocks", url: "https://www.fireblocks.com/blog/near-zero-day-sweat-hot-token-exploit" }],
   },
 ];
 
@@ -112,7 +122,7 @@ export const REPLAYS: Replay[] = [
   {
     id: "sweat",
     title: "Public resolver",
-    incident: "SWEAT / HOT · Fireblocks zero-day",
+    incident: "SWEAT / HOT · Apr 2026 · Fireblocks",
     summary:
       "After a real withdrawal, the attacker chains a failing call into the vault's resolve_withdraw. A public resolver sees “transfer failed” and re-credits.",
     naive: {

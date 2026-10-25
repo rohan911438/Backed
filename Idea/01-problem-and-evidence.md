@@ -21,18 +21,18 @@ On Ethereum a transaction is all-or-nothing, so this family barely exists there.
 - Illia Polosukhin: *"At this scale, we have to hold ourselves to a higher security standard."* NEAR announced formal verification for the contract release process.
 
 ### 2. Rhea Finance — $18.4M (2026-04-16)
-- **What happened:** margin trading summed `min_amount_out` across every swap step (`burrowland/contracts/contract/src/margin_trading.rs:111`, verified in source), and the callback **credited what the route claimed, not what was delivered**. The attacker routed through ~123 fake tokens and ~25 fake pools built over 2 days; positions were credited ~4 million times their real value, then liquidated, draining the reserve.
+- **What happened:** margin trading's slippage check summed `min_amount_out` across every swap step, intermediate hops included, so the validated minimum was hugely inflated. The fake-pool route passed that check. Then `on_open_trade_return()` accepted the amount actually returned, about 4.1 million times smaller, **with no check against the validated minimum** (per [Rekt](https://rekt.news/rhea-finance-rekt)). The ledger trusted the *claimed* figure, and the *delivered* one never corrected it. The attacker used ~123 fake tokens and 25 fake Ref pools (IDs 8514–8538), prepared over ~2 days.
 - **After:** margin trading permanently shut down; lending relaunched with monitoring bots and an audit. Margin debt on mainnet is 0 today (verified).
 
-### 3. SWEAT and HOT tokens — zero-day (found by Fireblocks)
-- **What happened:** `ft_resolve_transfer` (the refund callback) lacked `#[private]`, so anyone could call it with fake "nothing was used" results and get refunds they weren't owed. One victim lost 8.5M SWEAT.
+### 3. SWEAT and HOT tokens — zero-day (late April 2026, found by Fireblocks)
+- **What happened:** `ft_resolve_transfer` (the refund callback) lacked `#[private]`, so anyone could call it with fake "nothing was used" results and get refunds they weren't owed. One victim lost 8.5M SWEAT (~$170–250K). Fireblocks found the same flaw in HOT (22M+ holders); it was patched the same day.
 - NEAR docs now warn: make the resolver private, cap refunds by the original amount and current balance, and prefer the standard implementations.
 
 ### The common thread
 | Incident | Ledger said | Reality |
 |---|---|---|
 | Intents | user has X | tokens were refunded, contract holds less |
-| Rhea | position worth Y | protocol received ~0.00002% of Y |
+| Rhea | position worth Y | protocol received ~1/4,100,000 of Y |
 | SWEAT/HOT | refund owed | nothing was owed |
 
 All three: **an async step's real outcome never reached the ledger correctly.**
@@ -59,9 +59,11 @@ Backing check = `held` (token contract's `ft_balance_of(protocol)`) vs `owed` (t
 - AI coding agents now write a growing share of contracts, and they repeat these async patterns unless the safe pattern is the default.
 
 ## Sources
-- near/intents commits `0c1a530c`, `16d04f6e`, `153cab96` (cloned 2026-10-23)
-- crypto.news, "NEAR Intents resumes service after $3.8M exploit"; CoinDesk 2026-10-01; Crypto Times 2026-10-17 (postmortem report)
-- Rekt, "Rhea Finance"; QuillAudits Rhea analysis; The Block Rhea post-mortem; AMBCrypto (margin discontinued)
-- Fireblocks, "NEAR zero-day: SWEAT/HOT token exploit"; NEAR docs, ft_transfer_call security
+Links re-checked on 2026-10-25.
+
+- near/intents: [`0c1a530c` regression test (PR #362)](https://github.com/near/intents/commit/0c1a530c8da337008e28baa9987a816249d707e6), [`16d04f6e` remove deposit notifications (PR #374)](https://github.com/near/intents/commit/16d04f6ec4401263f8914638710260da50bb46b0), [`153cab96` withdrawals and deposits guardian (PR #326)](https://github.com/near/intents/commit/153cab96d9a06415cc93d93c48cf131d24c59836)
+- NEAR Intents: [official postmortem (Alex Shevchenko on X)](https://x.com/AlexAuroraDev/status/2111124226962870770); [Crypto Times, 2026-10-17](https://www.cryptotimes.io/2026/10/17/near-intents-traces-3-8m-exploit-to-smart-contract-deposit-bug/); [crypto.news via cryptonews.net](https://cryptonews.net/news/security/33526432/); [postmortem walkthrough](https://thecoding.substack.com/p/near-intents-ghost-fund-postmortem)
+- Rhea: [The Block post-mortem, 2026-04-17](https://www.theblock.co/news/ecosystems/2026-04-17-rhea-finance-post-mortem-exploit-losses-18-4-million-double-initial-estimates-397961); [Rekt, "Rhea Finance"](https://rekt.news/rhea-finance-rekt); [Coin Edition, built over two days](https://coinedition.com/18-4m-rhea-finance-hack-built-over-two-days-post-mortem-reveals/)
+- SWEAT/HOT: [Fireblocks blog](https://www.fireblocks.com/blog/near-zero-day-sweat-hot-token-exploit); [Fireblocks Q2 2026 threat report](https://www.fireblocks.com/report/crypto-threat-report-q2-2026)
 - Anthropic SCONE-bench coverage (spaziocrypto, cryptometer)
 - NEAR mainnet RPC reads, 2026-10-23

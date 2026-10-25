@@ -12,8 +12,8 @@ contract says it **holds**. Three 2026 incidents came from that drift:
 | Incident | Bug | Rule that prevents it |
 |---|---|---|
 | NEAR Intents, 2026-10-01, $3.8M | Resolve callback panicked (uncapped refund, log limit), token refunded the deposit, credit stayed | R3: resolves never panic |
-| Rhea Finance, 2026-04-16, $18.4M | Credited the swap route's *claimed* minimum, not what arrived | R1: credit only delivered amounts |
-| SWEAT/HOT zero-day | Public resolver: anyone chained a failed call into it and got re-credited | R2: callbacks are `#[private]` |
+| Rhea Finance, 2026-04-16, $18.4M | Validated positions against the swap route's *claimed* output, then accepted far less delivered | R1: credit and check only delivered amounts |
+| SWEAT/HOT, Apr 2026 (Fireblocks) | `ft_resolve_transfer` lacked `#[private]`: anyone could call it for refunds nobody was owed | R2: callbacks are `#[private]` |
 
 ## The rules
 

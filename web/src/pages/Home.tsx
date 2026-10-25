@@ -58,13 +58,14 @@ export default function Home() {
               )}
             </a>
             <h1>
-              <span className="nowrap">Never owe more</span>
+              <span className="nowrap">Is every token</span>
               <br />
-              than you <em>hold.</em>
+              <em>actually there?</em>
             </h1>
             <p className="hero-sub">
-              On NEAR, nothing rolls back. Backed makes the async ledger bugs behind $22M of 2026 losses impossible to ship,
-              replays every attack to prove it, and checks on-chain that protocols hold what they owe.
+              Backed reads what NEAR Intents owes its users and what it really holds, token by token, at the same block.
+              The gap it looks for is the bug behind $22M+ of 2026 NEAR exploits, so Backed also ships the library that
+              prevents it.
             </p>
             <div className="hero-ctas">
               <button className="btn btn-ok btn-lg" onClick={primary} disabled={!ready && !accountId}>
@@ -133,6 +134,17 @@ export default function Home() {
                   <span className="pill pill-ok">Backed fix</span>
                   <p>{i.fix}</p>
                 </div>
+                <p className="sources mono">
+                  Sources:{" "}
+                  {i.sources.map((s, n) => (
+                    <span key={s.url}>
+                      {n > 0 && " · "}
+                      <a href={s.url} target="_blank" rel="noreferrer">
+                        {s.label}
+                      </a>
+                    </span>
+                  ))}
+                </p>
               </article>
             ))}
           </div>
