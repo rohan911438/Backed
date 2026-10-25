@@ -269,6 +269,7 @@ backed check <target> --token <token>... [--adapter nep245|burrow|backed] [--jso
 backed scan-intents [--limit N] [--parallel N] [--metadata] [--json]
 backed chaos [--scenario intents|sweat|rhea] [--vault naive|backed|both] [--json]   # needs --features chaos
 backed attest <target> <token> --signer <account> [--checker <account>]             # prints the near-cli command
+backed mcp                                                                          # MCP server for AI agents (stdio, read-only)
 ```
 
 `check` and `scan-intents` read owed and held **at the same block**, so results are exact. Add `--block <height>` with an archival RPC (`--rpc https://archival-rpc.mainnet.near.org`) to read any past block. `chaos` exits non-zero if a Backed vault ever breaks the invariant, which makes it usable as a CI gate.
@@ -297,6 +298,23 @@ Prebuilt binaries for Linux, macOS and Windows are attached to each [GitHub rele
 3. runs a review checklist on every change;
 4. proves the result with `backed chaos`;
 5. runs `backed check` before depositing into any protocol.
+
+### MCP server for agents that move funds
+
+`backed mcp` is a read-only [Model Context Protocol](https://modelcontextprotocol.io) server, so any AI agent (Claude, Cursor, a wallet agent) can check a protocol before it deposits. It never signs anything.
+
+| Tool | What it answers |
+|---|---|
+| `check_backing(target, tokens, adapter?, block?)` | Owed vs held at one block, with a verdict: *BACKED*, or *UNDER-BACKED for X: don't deposit X without investigating* |
+| `intents_backing_summary()` | Latest daily scan of every NEP-141 token in NEAR Intents |
+| `checker_status(target, token, network?, checker?)` | What the on-chain checker last recorded: Healthy, Suspected or Confirmed |
+
+```bash
+cargo install --path cli            # or download a release binary
+claude mcp add backed -- backed mcp # Claude Code; other clients: command "backed", args ["mcp"]
+```
+
+Example: asked "Is it safe to deposit BATMAN into NEAR Intents?", an agent calls `check_backing` and gets *"intents.near at block 221,565,674: UNDER-BACKED for batman-4.nearlytrade.near…"*, with the cause in [findings](docs/FINDINGS.md).
 
 ## Architecture
 
@@ -331,7 +349,7 @@ crates/backed-chaos/    failure catalog F1–F8, invariant oracle, three replays
 contracts/checker/      checker contract (Intents, Rhea and Backed-standard adapters)
 contracts/examples/     naive-vault (the three bug patterns, on purpose) and backed-vault
 contracts/helpers/      test-token, evil-receiver, lying-venue (used by the replays only)
-cli/                    backed CLI: check, scan-intents, chaos, attest
+cli/                    backed CLI: check, scan-intents, chaos, attest, mcp
 web/                    Vite + React app: home, live backing, checker (wallet), replays, build
 skill/SKILL.md          instructions for AI coding agents
 docs/                   draft NEP for backed_solvency, mainnet deploy checklist

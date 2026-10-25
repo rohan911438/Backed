@@ -3,6 +3,7 @@
 //! Every reading takes `owed` and `held` at the same block height, so the
 //! result is exact: no in-flight transfer can make it look wrong.
 
+mod mcp;
 mod rpc;
 
 use anyhow::{anyhow, Result};
@@ -66,6 +67,8 @@ enum Cmd {
         #[arg(long, default_value = "both")]
         vault: String,
     },
+    /// Run an MCP server on stdin/stdout so AI agents can check backing (read-only).
+    Mcp,
     /// Print the near-cli command that records an attestation on-chain.
     Attest {
         target: String,
@@ -248,6 +251,7 @@ fn main() -> Result<()> {
             }
         }
         Cmd::Chaos { scenario, vault } => chaos(scenario.as_deref(), &vault, cli.json)?,
+        Cmd::Mcp => mcp::serve(rpc)?,
         Cmd::Attest { target, token, checker, signer } => {
             println!("Records an on-chain attestation (attach 0.005 NEAR; the unused part is refunded):\n");
             println!(

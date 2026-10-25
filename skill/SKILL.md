@@ -104,6 +104,9 @@ backed check contract.main.burrow.near --token wrap.near
 backed scan-intents
 ```
 
+If the `backed` MCP server is connected (`backed mcp`), call its
+`check_backing` tool instead of the shell command.
+
 `owed` and `held` are read at the same block height, so the result is exact.
 `UNDER-BACKED` means the protocol owes more of that token than it holds. Report
 it as a finding to the protocol, and don't deposit that token.
