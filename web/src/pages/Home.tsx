@@ -5,13 +5,14 @@ import { href, navigate, type Page } from "../router";
 import { useSnapshot } from "../snapshot";
 import { AccountButton, Brand, ThemeButton } from "../ui";
 import { useWallet } from "../wallet";
+import { McpConnect } from "../Mcp";
 import { ReplayCompare } from "./Replays";
 
 const APP_PAGES: { page: Page; title: string; body: string; icon: string }[] = [
-  { page: "dashboard", title: "Live backing", body: "Every token in NEAR Intents and Rhea lending: owed vs held at one block. Re-verify any row from your browser.", icon: "◉" },
+  { page: "dashboard", title: "Live backing", body: "Every token in NEAR Intents, Rhea lending and Ref Finance: owed vs held at one block. Re-verify any row from your browser.", icon: "◉" },
   { page: "checker", title: "On-chain checker", body: "Read attestations recorded by the checker contract, and sign a new one with your wallet.", icon: "⛓" },
   { page: "replays", title: "Attack replays", body: "The three 2026 incidents replayed against a naive vault and a Backed vault, step by step.", icon: "↻" },
-  { page: "build", title: "Build with Backed", body: "The Rust library, the CLI and the AI-agent skill, with copy-paste examples.", icon: "</>" },
+  { page: "build", title: "Build with Backed", body: "Why we built it, the roadmap, the MCP server for AI agents, the Rust library and the skill.", icon: "</>" },
 ];
 
 export default function Home() {
@@ -30,6 +31,7 @@ export default function Home() {
           <a href="#proof">Proof</a>
           <a href="#how">How it works</a>
           <a href="#inside">Inside the app</a>
+          <a href="#agents">AI agents</a>
         </nav>
         <div className="nav-actions">
           <ThemeButton />
@@ -209,6 +211,23 @@ export default function Home() {
                 <span className="app-go">Open →</span>
               </a>
             ))}
+          </div>
+        </section>
+
+        <section className="section" id="agents">
+          <div className="agents card">
+            <div>
+              <p className="eyebrow">For AI agents</p>
+              <h2>
+                Ask before you deposit. <em>From any agent.</em>
+              </h2>
+              <p className="lede">
+                Backed is an MCP server, so Claude, Cursor or a wallet agent can check a NEAR protocol before moving funds.
+                Ask “Is it safe to deposit BATMAN into NEAR Intents?” and the agent gets the answer: <b>UNDER-BACKED</b>,
+                with the numbers and the block.
+              </p>
+            </div>
+            <McpConnect />
           </div>
         </section>
 

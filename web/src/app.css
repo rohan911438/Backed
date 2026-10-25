@@ -794,3 +794,109 @@ button.btn {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ---------- MCP connect block ---------- */
+.agents {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  gap: clamp(20px, 4vw, 48px);
+  align-items: center;
+  padding: clamp(22px, 4vw, 40px);
+}
+.agents h2 {
+  margin: 8px 0 12px;
+}
+.mcp {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.registry-badge {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  font-size: 12.5px;
+  color: var(--text-2);
+  text-decoration: none;
+  background: var(--ok-soft);
+  border: 1px solid color-mix(in srgb, var(--ok) 35%, transparent);
+  border-radius: 999px;
+  padding: 5px 12px;
+  overflow-wrap: anywhere;
+}
+.registry-badge:hover {
+  color: var(--text);
+}
+.registry-badge .dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+.mcp-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.mcp-tabs button {
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--muted);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+.mcp-tabs button[aria-selected="true"] {
+  color: var(--text);
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+}
+.mcp-cmd {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 10px 10px 14px;
+}
+.mcp-cmd pre {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.mcp-cmd .btn-ghost {
+  flex-shrink: 0;
+}
+.mcp-tools {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+  font-size: 13.5px;
+}
+.mcp-tools li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  color: var(--text-2);
+}
+.mcp-tools code {
+  color: var(--ok);
+}
+@media (max-width: 960px) {
+  .agents {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

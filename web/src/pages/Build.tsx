@@ -1,6 +1,5 @@
 import { REPO } from "../config";
-
-const MCP_URL = "https://backed-near.vercel.app/api/mcp";
+import { McpConnect } from "../Mcp";
 
 const SECTIONS = [
   ["why", "Why"],
@@ -54,7 +53,7 @@ const ROADMAP = [
       "Checker contract (testnet), abuse-resistant",
       "Live backing for Intents, Rhea, Ref",
       "Daily scan, history, issue + chat alerts",
-      "MCP server (hosted + CLI) and agent skill",
+      "MCP server, listed in the official MCP Registry",
       "Draft NEP: backed_solvency",
     ],
   },
@@ -203,11 +202,9 @@ export default function Build() {
         <div className="grid-3">
           <article className="card start">
             <p className="eyebrow">AI agents · wallets</p>
-            <h3>Hosted MCP server</h3>
-            <p>Ask “is it safe to deposit here?” from any MCP client. Read-only, nothing to install.</p>
-            <pre className="mono snippet">{`claude mcp add --transport http \\
-  backed ${MCP_URL}`}</pre>
-            <p className="muted small">Tools: check_backing · intents_backing_summary · checker_status</p>
+            <h3>MCP server</h3>
+            <p>Ask “is it safe to deposit here?” from any MCP client. Hosted, nothing to install.</p>
+            <McpConnect compact />
           </article>
           <article className="card start">
             <p className="eyebrow">Contract developers</p>

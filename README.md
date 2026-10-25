@@ -15,6 +15,7 @@ The same gap, a ledger that records more than the contract holds, is the bug beh
 | **Replays** | 3 of 3 attacks break the naive vault; 3 of 3 are blocked by the Backed vault |
 | **Checker contract** | [`simplekilt7490.testnet`](https://testnet.nearblocks.io/address/simplekilt7490.testnet): records backing on-chain, signed from your wallet |
 | **Network** | Mainnet protocols are **read** live (read-only). The checker contract is deployed on **testnet**. |
+| **MCP server** | Published in the [official MCP Registry](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.rohan911438/backed) as `io.github.rohan911438/backed`; hosted at `https://backed-near.vercel.app/api/mcp` |
 | **Tests** | 36 unit tests + 3 sandbox replays, run in CI on every push |
 | **Tracks** | Open Innovation · Unstoppable DeFi |
 
@@ -25,7 +26,7 @@ The same gap, a ledger that records more than the contract holds, is the bug beh
 3. Switch the filter to **issues** to see the under-backed and unreadable tokens.
 4. Open **Replays** to watch each 2026 attack break a naive vault and fail against the Backed vault.
 
-Using an AI agent? Connect the hosted MCP server and ask it whether a deposit is safe:
+Using an AI agent? Backed is in the [official MCP Registry](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.rohan911438/backed) as **`io.github.rohan911438/backed`**. Connect the hosted server and ask whether a deposit is safe:
 
 ```bash
 claude mcp add --transport http backed https://backed-near.vercel.app/api/mcp
@@ -376,7 +377,7 @@ For Cursor, VS Code or any other client that takes a JSON config:
 { "mcpServers": { "backed": { "url": "https://backed-near.vercel.app/api/mcp" } } }
 ```
 
-Its source is [`api/mcp.ts`](api/mcp.ts), and [`server.json`](server.json) describes it for the [MCP Registry](https://registry.modelcontextprotocol.io).
+**Listed in the official MCP Registry** as [`io.github.rohan911438/backed`](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.rohan911438/backed) (version 0.1.0, published 2026-10-25), so registry-aware clients can find it by name. Its source is [`api/mcp.ts`](api/mcp.ts) and its registry entry is [`server.json`](server.json). To publish a new version: bump `version` in `server.json`, then run `mcp-publisher login github` and `mcp-publisher publish`.
 
 **Local (stdio, from the CLI).** `backed mcp`, for agents that shouldn't depend on our server or need past blocks:
 
@@ -637,7 +638,7 @@ timeline
 | | Checker contract on testnet, abuse-resistant (pays own storage, logs on state change) | ✅ |
 | | Live backing for NEAR Intents, Rhea lending, Ref Finance (floor) | ✅ |
 | | Daily scan, history CSV, GitHub issue + Discord/Telegram alerts | ✅ |
-| | MCP server, hosted and in the CLI; agent skill | ✅ |
+| | MCP server, hosted and in the CLI, listed in the official MCP Registry; agent skill | ✅ |
 | | Draft NEP: [`backed_solvency`](docs/NEP-backed-solvency.md) | ✅ |
 | **Next** | Checker on mainnet ([checklist](docs/MAINNET.md)) | Ready, needs ~2 NEAR |
 | | Responsible disclosure of the tax-refund finding to NEAR Intents | Planned |
