@@ -159,6 +159,8 @@ The checker runs at [`simplekilt7490.testnet`](https://testnet.nearblocks.io/add
 | `wrap.testnet` | 1,252.78 NEAR | 20,115.29 NEAR | Healthy | [`GPi36PvK…`](https://testnet.nearblocks.io/txns/GPi36PvKK5sw95BDVa6f2tLoXXWRjRCXyEEgZbm2wHuG) |
 | `usdc.fakes.testnet` | 103,906.634556 | 103,906.635640 | Healthy | [`5MGdqCBQ…`](https://testnet.nearblocks.io/txns/5MGdqCBQ296W7dyFogHrXKM6CFGDQLFBjxBoXRsseycE) |
 
+**The standard, end to end:** the example [`backed-vault`](contracts/examples/backed-vault) runs at [`dev-20261025164059-33623400177607.testnet`](https://testnet.nearblocks.io/address/dev-20261025164059-33623400177607.testnet) with a real 0.01 wNEAR deposit ([`8HU7NBDS…`](https://testnet.nearblocks.io/txns/8HU7NBDSiu2NM2Z614E14DmDBcDp9C48DFTjLHYAkm6X)). It reports its books through [`backed_solvency`](docs/NEP-backed-solvency.md), and the checker reads them with no protocol-specific adapter: owed 0.01, held 0.01, **Healthy** ([`9mXCuLmj…`](https://testnet.nearblocks.io/txns/9mXCuLmjw5q2spxQGmWnqpQWuzzS3kdfxsJ341Jh4kPT)). It appears on the web app's Checker page. Recreate it with `live testnet <account> vault`.
+
 The checker is deployed on testnet for this submission. The same contract and `examples/live.rs` deploy to mainnet unchanged, with the Intents (`Nep245Ledger`) and Burrow adapters.
 
 ## The web app

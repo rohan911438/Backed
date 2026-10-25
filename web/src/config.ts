@@ -21,7 +21,7 @@ export const CHECKER = {
   account: (env.VITE_CHECKER_ACCOUNT as string | undefined) || DEFAULT_CHECKER[WALLET_NETWORK],
 };
 
-export type CheckerTarget = { label: string; target: string; adapter: "burrow" | "nep245"; tokens: string[] };
+export type CheckerTarget = { label: string; target: string; adapter: "burrow" | "nep245" | "backed"; tokens: string[] };
 
 /** Targets the checker has an adapter for on each network, with tokens worth checking. */
 const TARGETS: Record<NetworkId, CheckerTarget[]> = {
@@ -31,6 +31,12 @@ const TARGETS: Record<NetworkId, CheckerTarget[]> = {
       target: "contract.1638481328.burrow.testnet",
       adapter: "burrow",
       tokens: ["wrap.testnet", "usdc.fakes.testnet"],
+    },
+    {
+      label: "Example Backed vault (backed_solvency standard)",
+      target: "dev-20261025164059-33623400177607.testnet",
+      adapter: "backed",
+      tokens: ["wrap.testnet"],
     },
   ],
   mainnet: [

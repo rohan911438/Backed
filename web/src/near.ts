@@ -75,7 +75,17 @@ export function burrowOwed(json: string): bigint | null {
   }
 }
 
-export type Adapter = "nep245" | "burrow";
+export type Adapter = "nep245" | "burrow" | "backed";
+
+/** Backed standard: owed comes from the contract's own `backed_solvency(token)` view. */
+export function backedOwed(json: string): bigint | null {
+  try {
+    const v = JSON.parse(json);
+    return v && typeof v.owed === "string" ? BigInt(v.owed) : null;
+  } catch {
+    return null;
+  }
+}
 
 export type Status = "backed" | "UNDER-BACKED" | "error";
 
@@ -104,10 +114,12 @@ export async function checkToken(
     const [owedRaw, heldRaw] = await Promise.all([
       adapter === "nep245"
         ? view(target, "mt_supply", { token_id: `nep141:${token}` }, b, network)
-        : view(target, "get_asset", { token_id: token }, b, network),
+        : adapter === "backed"
+          ? view(target, "backed_solvency", { token }, b, network)
+          : view(target, "get_asset", { token_id: token }, b, network),
       view(token, "ft_balance_of", { account_id: target }, b, network),
     ]);
-    const owed = adapter === "nep245" ? parseU128(owedRaw) : burrowOwed(owedRaw);
+    const owed = adapter === "nep245" ? parseU128(owedRaw) : adapter === "backed" ? backedOwed(owedRaw) : burrowOwed(owedRaw);
     const held = parseU128(heldRaw);
     if (owed === null || held === null) throw new Error("unreadable response");
     const under = held < owed;

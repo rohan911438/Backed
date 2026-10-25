@@ -2,7 +2,7 @@
 //!
 //! ```text
 //! cargo run -p backed-chaos --features sandbox --example live -- \
-//!     <testnet|mainnet> <account-id> <preflight|deploy|upgrade|attest|status> [target token]
+//!     <testnet|mainnet> <account-id> <preflight|deploy|upgrade|vault|attest|status> [target token]
 //! ```
 //!
 //! The signing key is read from `~/.near-credentials/<network>/<account-id>.json`
@@ -47,16 +47,28 @@ fn credentials(network: &str, account: &str) -> Result<PathBuf> {
 async fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let [network, account, cmd, rest @ ..] = args.as_slice() else {
-        bail!("usage: live <testnet|mainnet> <account-id> <preflight|deploy|upgrade|attest|status> [target token]");
+        bail!("usage: live <testnet|mainnet> <account-id> <preflight|deploy|upgrade|vault|attest|status> [target token]");
     };
     match network.as_str() {
-        "testnet" => run(near_workspaces::testnet().rpc_addr(TESTNET_RPC).await?, network, account, cmd, rest).await,
-        "mainnet" => run(near_workspaces::mainnet().rpc_addr(MAINNET_RPC).await?, network, account, cmd, rest).await,
+        "testnet" => {
+            let worker = near_workspaces::testnet().rpc_addr(TESTNET_RPC).await?;
+            // `vault` needs a fresh account funded by the testnet faucet helper.
+            let dev = if cmd == "vault" { Some(worker.dev_create_account().await?) } else { None };
+            run(worker, network, account, cmd, rest, dev).await
+        }
+        "mainnet" => run(near_workspaces::mainnet().rpc_addr(MAINNET_RPC).await?, network, account, cmd, rest, None).await,
         other => bail!("unknown network {other}"),
     }
 }
 
-async fn run<N: Network + 'static>(worker: Worker<N>, network: &str, account: &str, cmd: &str, rest: &[String]) -> Result<()> {
+async fn run<N: Network + 'static>(
+    worker: Worker<N>,
+    network: &str,
+    account: &str,
+    cmd: &str,
+    rest: &[String],
+    dev: Option<Account>,
+) -> Result<()> {
     let signer = Account::from_file(credentials(network, account)?, &worker)?;
     let checker: AccountId = account.parse()?;
     match (cmd, rest) {
@@ -72,11 +84,14 @@ async fn run<N: Network + 'static>(worker: Worker<N>, network: &str, account: &s
             println!("wasm:           {} bytes", wasm.len());
             println!("storage locked: {} NEAR (for the code)", fmt_near(code_cost));
             println!("plus headroom:  {} NEAR (state, adapters, gas)", fmt_near(headroom));
-            println!("balance:        {} NEAR", fmt_near(details.balance));
-            if details.balance >= need {
+            // Storage already used by this account is locked and not spendable.
+            let locked = NearToken::from_yoctonear(details.storage_usage as u128 * 10u128.pow(19));
+            let free = details.balance.saturating_sub(locked);
+            println!("balance:        {} NEAR ({} locked by current storage, {} free)", fmt_near(details.balance), fmt_near(locked), fmt_near(free));
+            if free >= need {
                 println!("OK: enough to deploy.");
             } else {
-                bail!("not enough NEAR: need about {} more", fmt_near(need.saturating_sub(details.balance)));
+                bail!("not enough NEAR: need about {} more", fmt_near(need.saturating_sub(free)));
             }
         }
         ("upgrade", []) => {
@@ -85,6 +100,59 @@ async fn run<N: Network + 'static>(worker: Worker<N>, network: &str, account: &s
             signer.deploy(&wasm).await?.into_result()?;
             let owner: Value = worker.view(&checker, "get_owner").await?.json()?;
             println!("  upgraded; owner is still {owner}");
+        }
+        ("vault", []) if dev.is_some() => {
+            // Example Backed vault at vault.<account>, checked through the backed_solvency standard.
+            let token: AccountId = "wrap.testnet".parse()?;
+            let wasm = std::fs::read(backed_chaos::sandbox::wasm_path("backed_vault")?)?;
+            // A fresh dev account funded by the testnet faucet helper (the vault's
+            // code needs ~1.6 NEAR of storage). Its key is saved like near-cli's.
+            let vault = dev.expect("dev account");
+            let dir = credentials(network, account)?.parent().map(|p| p.to_path_buf()).context("credentials dir")?;
+            vault.store_credentials(&dir).await?;
+            println!("  created {} (key saved in {})", vault.id(), dir.display());
+            let c: Contract = vault.deploy(&wasm).await?.into_result()?;
+            let init = c.call("new").args_json(json!({ "owner": checker, "tokens": [token] })).transact().await?;
+            report("vault new", &init)?;
+            for (who, what) in [(vault.id().clone(), "vault"), (checker.clone(), "signer")] {
+                let res = signer
+                    .call(&token, "storage_deposit")
+                    .args_json(json!({ "account_id": who, "registration_only": true }))
+                    .deposit(NearToken::from_micronear(1_250))
+                    .transact()
+                    .await?;
+                report(&format!("wrap storage_deposit for {what}"), &res)?;
+            }
+            let res = signer
+                .call(&checker, "set_adapter")
+                .args_json(json!({ "target": vault.id(), "kind": "BackedStandard" }))
+                .deposit(NearToken::from_yoctonear(1))
+                .transact()
+                .await?;
+            report("set_adapter vault = BackedStandard", &res)?;
+            // A real deposit: wrap 0.01 NEAR, send it to the vault, then attest.
+            let amount = NearToken::from_millinear(10);
+            let res = signer.call(&token, "near_deposit").deposit(amount).transact().await?;
+            report("wrap 0.01 NEAR", &res)?;
+            let res = signer
+                .call(&token, "ft_transfer_call")
+                .args_json(json!({ "receiver_id": vault.id(), "amount": amount.as_yoctonear().to_string(), "msg": "" }))
+                .deposit(NearToken::from_yoctonear(1))
+                .gas(Gas::from_tgas(100))
+                .transact()
+                .await?;
+            report("deposit 0.01 wNEAR into the vault", &res)?;
+            let solvency: Value = worker.view(vault.id(), "backed_solvency").args_json(json!({ "token": token })).await?.json()?;
+            println!("  vault backed_solvency: {solvency}");
+            let res = signer
+                .call(&checker, "attest")
+                .args_json(json!({ "target": vault.id(), "token": token }))
+                .deposit(NearToken::from_millinear(5))
+                .gas(Gas::from_tgas(100))
+                .transact()
+                .await?;
+            report("attest vault", &res)?;
+            println!("  result: {}", res.json::<Option<Value>>().ok().flatten().map(|v| v.to_string()).unwrap_or_default());
         }
         ("deploy", []) => {
             let wasm = std::fs::read(backed_chaos::sandbox::wasm_path("backed_checker")?)?;
@@ -126,7 +194,7 @@ async fn run<N: Network + 'static>(worker: Worker<N>, network: &str, account: &s
                 .json()?;
             println!("{}", serde_json::to_string_pretty(&v)?);
         }
-        _ => bail!("usage: live <testnet|mainnet> <account-id> <preflight|deploy|upgrade|attest|status> [target token]"),
+        _ => bail!("usage: live <testnet|mainnet> <account-id> <preflight|deploy|upgrade|vault|attest|status> [target token]"),
     }
     Ok(())
 }
