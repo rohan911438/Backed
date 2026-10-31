@@ -155,14 +155,14 @@ dependencies = [
 
 [[package]]
 name = "backed"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "near-sdk",
 ]
 
 [[package]]
 name = "backed-chaos"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "near-workspaces",
@@ -172,7 +172,7 @@ dependencies = [
 
 [[package]]
 name = "backed-checker"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "backed-checker-logic",
  "near-sdk",
@@ -180,14 +180,14 @@ dependencies = [
 
 [[package]]
 name = "backed-checker-logic"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "near-sdk",
 ]
 
 [[package]]
 name = "backed-cli"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "backed-chaos",
@@ -202,7 +202,7 @@ dependencies = [
 
 [[package]]
 name = "backed-vault"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "backed",
  "near-sdk",
@@ -1086,7 +1086,7 @@ dependencies = [
 
 [[package]]
 name = "evil-receiver"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "near-sdk",
 ]
@@ -1983,7 +1983,7 @@ checksum = "4050469837a6ff301cd14c1f8f24f88549e6d548f24f64e2148eb0f72cebc51f"
 
 [[package]]
 name = "lying-venue"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "near-sdk",
 ]
@@ -2035,7 +2035,7 @@ checksum = "743fb55ba31b18fb1ecef6bdc9aa2743314978ac084044301a7eee33fb99a20d"
 
 [[package]]
 name = "naive-vault"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "near-sdk",
 ]
@@ -3916,7 +3916,7 @@ dependencies = [
 
 [[package]]
 name = "test-token"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "near-contract-standards",
  "near-sdk",
