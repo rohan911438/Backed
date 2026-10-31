@@ -6,7 +6,7 @@
 //! transfers in flight. A breach is `Suspected` first, and `Confirmed` only
 //! when a second attestation at least `min_gap_blocks` later still shows it.
 
-pub mod logic;
+pub use backed_checker_logic as logic;
 
 use logic::{classify, parse_owed, parse_u128, Params, PairState};
 use near_sdk::json_types::U128;

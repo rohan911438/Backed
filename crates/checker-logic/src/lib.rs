@@ -1,4 +1,4 @@
-//! Pure logic for the checker: adapters, parsing and breach classification.
+//! Pure logic for the Backed checker contract: adapters, parsing and breach classification.
 //! Kept free of chain calls so it can be tested against real mainnet data.
 
 use near_sdk::{near, AccountId, Gas, NearToken, Promise};

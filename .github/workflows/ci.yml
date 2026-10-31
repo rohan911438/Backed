@@ -13,7 +13,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Unit tests (library, checker, chaos, example vaults)
-        run: cargo test -p backed -p backed-checker -p backed-chaos -p naive-vault -p backed-vault
+        run: cargo test -p backed -p backed-checker-logic -p backed-checker -p backed-chaos -p naive-vault -p backed-vault
       - name: Build CLI
         run: cargo build -p backed-cli
 

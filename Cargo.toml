@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/backed",
     "crates/backed-chaos",
+    "crates/checker-logic",
     "contracts/checker",
     "contracts/examples/naive-vault",
     "contracts/examples/backed-vault",

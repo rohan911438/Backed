@@ -57,7 +57,7 @@ Who touches Backed, in what order, and what they see. Each flow notes what exist
 | Step | Action | What they see |
 |---|---|---|
 | 1 | Open the README | Problem, three incidents with sources, what's built |
-| 2 | `cargo test -p backed -p backed-checker -p backed-chaos -p naive-vault -p backed-vault` | 32 passing tests, incl. an async timing simulation with zero false alarms and Rhea math on a real mainnet fixture |
+| 2 | `cargo test -p backed -p backed-checker-logic -p backed-checker -p backed-chaos -p naive-vault -p backed-vault` | 36 passing tests, incl. an async timing simulation with zero false alarms and Rhea math on a real mainnet fixture |
 | 3 | `backed scan-intents` | Live: 370 tokens, 362 backed, 3 under-backed |
 | 4 | Open the web page | Live sphere of tokens, explorer, Verify buttons |
 | 5 | ✅ `cargo test -p backed-chaos --features sandbox replay_` in the sandbox | Naive vault loses money, Backed vault doesn't |

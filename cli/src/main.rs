@@ -7,7 +7,7 @@ mod mcp;
 mod rpc;
 
 use anyhow::{anyhow, Result};
-use backed_checker::logic::{parse_owed, parse_u128, AdapterKind};
+use backed_checker_logic::{parse_owed, parse_u128, AdapterKind};
 use clap::{Parser, Subcommand};
 use rpc::Rpc;
 use serde::Serialize;

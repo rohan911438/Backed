@@ -249,7 +249,7 @@ Rust builds need **Linux, macOS or WSL** (near-sdk tests don't build with the Wi
 git clone https://github.com/rohan911438/Backed && cd Backed
 
 # 1. Unit tests (36)
-cargo test -p backed -p backed-checker -p backed-chaos -p naive-vault -p backed-vault
+cargo test -p backed -p backed-checker-logic -p backed-checker -p backed-chaos -p naive-vault -p backed-vault
 
 # 2. Build all contracts, then replay the three attacks on a local NEAR sandbox
 bash scripts/build-wasm.sh
@@ -655,6 +655,7 @@ timeline
 crates/backed/          library: Ledger, Delivered/Claimed, capped refunds, LogBudget, reconcile
 crates/backed-chaos/    failure catalog F1–F8, invariant oracle, three replays, NEAR sandbox runner,
                         live deploy/attest tool (examples/live.rs)
+crates/checker-logic/   checker logic shared by contract and CLI (adapters, parsing, breach rules)
 contracts/checker/      checker contract (Intents, Rhea and Backed-standard adapters)
 contracts/examples/     naive-vault (the three bug patterns, on purpose) and backed-vault
 contracts/helpers/      test-token, evil-receiver, lying-venue (used by the replays only)

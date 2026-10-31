@@ -10,6 +10,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 near-sdk = { workspace = true }
+backed-checker-logic = { path = "../../crates/checker-logic" }
 
 [dev-dependencies]
 near-sdk = { workspace = true, features = ["unit-testing"] }
