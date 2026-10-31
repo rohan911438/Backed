@@ -1,0 +1,88 @@
+name: Daily backing scan
+
+# Once a day: read every NEP-141 token in intents.near (owed vs held at one
+# block), refresh the web snapshot, append a line to data/backing-history.csv,
+# and open an issue when a token becomes under-backed that wasn't before.
+# Read-only on NEAR: no keys, no transactions, no cost.
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: monitor
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build CLI
+        run: cargo build --release -p backed-cli
+      - name: Scan intents.near
+        run: |
+          ./target/release/backed --json scan-intents --metadata --parallel 4 > new.json
+          jq -e '.checked > 0' new.json > /dev/null
+      - name: Compare with the previous snapshot
+        id: diff
+        run: |
+          jq -r '.readings[] | select(.status == "UNDER-BACKED") | .token' web/public/intents-snapshot.json | sort > old.txt
+          jq -r '.readings[] | select(.status == "UNDER-BACKED") | .token' new.json | sort > now.txt
+          comm -13 old.txt now.txt > added.txt
+          echo "added=$(wc -l < added.txt | tr -d ' ')" >> "$GITHUB_OUTPUT"
+          echo "block=$(jq .block new.json)" >> "$GITHUB_OUTPUT"
+      - name: Record history and refresh snapshot
+        run: |
+          mkdir -p data
+          [ -f data/backing-history.csv ] || echo "date_utc,block,checked,backed,under_backed,unreadable,under_backed_tokens" > data/backing-history.csv
+          jq -r --arg d "$(date -u +%Y-%m-%dT%H:%MZ)" \
+            '[$d, .block, .checked, .backed, .under_backed, .errors, ([.readings[] | select(.status=="UNDER-BACKED") | .token] | join(" "))] | @csv' \
+            new.json >> data/backing-history.csv
+          mv new.json web/public/intents-snapshot.json
+          git config user.name "backed-monitor"
+          git config user.email "backed-monitor@users.noreply.github.com"
+          git add data/backing-history.csv web/public/intents-snapshot.json
+          git commit -m "Daily backing scan at block ${{ steps.diff.outputs.block }}" || echo "nothing to commit"
+          # Someone may have pushed while the scan ran: replay our commit on top.
+          for i in 1 2 3; do git pull --rebase -q && git push && break; sleep 5; done
+      - name: Open an issue for newly under-backed tokens
+        if: steps.diff.outputs.added != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "The daily scan at block ${{ steps.diff.outputs.block }} found tokens in \`intents.near\` that are newly under-backed (owed > held at the same block):"
+            echo
+            jq -r --rawfile added added.txt '.readings[] | select(.token as $t | ($added | split("\n") | index($t))) | "- `\(.token)` (\(.symbol // "?")): owed \(.owed), held \(.held), short \(.shortfall)"' web/public/intents-snapshot.json
+            echo
+            echo "Re-check any of them: \`backed check intents.near --token <token>\`. Under-backed can come from burns or transfer fees; treat it as a finding to investigate."
+          } > body.md
+          gh issue create --title "Newly under-backed in intents.near (block ${{ steps.diff.outputs.block }})" --body-file body.md
+      - name: Alert Discord / Telegram (optional)
+        # Set any of these repository secrets to turn alerts on:
+        #   DISCORD_WEBHOOK_URL, or TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID
+        if: steps.diff.outputs.added != '0'
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          MSG=$(printf 'Backed: newly under-backed in intents.near at block %s\n%s\n%s' \
+            "${{ steps.diff.outputs.block }}" "$(sed 's/^/- /' added.txt)" \
+            "https://github.com/${{ github.repository }}/issues")
+          if [ -n "$DISCORD_WEBHOOK_URL" ]; then
+            jq -n --arg c "$MSG" '{content: $c}' | curl -sf -H 'content-type: application/json' -d @- "$DISCORD_WEBHOOK_URL" && echo "discord: sent"
+          fi
+          if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
+            curl -sf "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+              --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" --data-urlencode "text=${MSG}" > /dev/null && echo "telegram: sent"
+          fi
+          [ -n "$DISCORD_WEBHOOK_URL$TELEGRAM_BOT_TOKEN" ] || echo "no alert secrets set; skipped"

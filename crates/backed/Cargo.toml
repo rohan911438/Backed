@@ -1,0 +1,17 @@
+[package]
+name = "backed"
+description = "Accounting building blocks for NEAR contracts: never owe more than you hold."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+# Exposes Delivered::for_tests for example contracts' unit tests.
+test-utils = []
+
+[dependencies]
+near-sdk = { workspace = true }
+
+[dev-dependencies]
+near-sdk = { workspace = true, features = ["unit-testing"] }

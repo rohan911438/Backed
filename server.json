@@ -1,0 +1,18 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.rohan911438/backed",
+  "title": "Backed: NEAR solvency checks",
+  "description": "Check if a NEAR protocol holds the tokens it owes, read at one block. Read-only.",
+  "version": "0.1.0",
+  "websiteUrl": "https://backed-near.vercel.app",
+  "repository": {
+    "url": "https://github.com/rohan911438/Backed",
+    "source": "github"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://backed-near.vercel.app/api/mcp"
+    }
+  ]
+}

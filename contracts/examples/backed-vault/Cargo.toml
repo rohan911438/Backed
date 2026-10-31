@@ -1,0 +1,18 @@
+[package]
+name = "backed-vault"
+description = "The naive vault's features, built on the backed library."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+near-sdk = { workspace = true }
+backed = { workspace = true }
+
+[dev-dependencies]
+near-sdk = { workspace = true, features = ["unit-testing"] }
+backed = { workspace = true, features = ["test-utils"] }

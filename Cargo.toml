@@ -1,0 +1,32 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/backed",
+    "crates/backed-chaos",
+    "crates/checker-logic",
+    "contracts/checker",
+    "contracts/examples/naive-vault",
+    "contracts/examples/backed-vault",
+    "contracts/helpers/test-token",
+    "contracts/helpers/evil-receiver",
+    "contracts/helpers/lying-venue",
+    "cli",
+]
+
+[workspace.package]
+version = "0.1.1"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/rohan911438/Backed"
+
+[workspace.dependencies]
+near-sdk = "5.29.0"
+backed = { path = "crates/backed" }
+
+[profile.release]
+codegen-units = 1
+opt-level = "z"
+lto = true
+debug = false
+panic = "abort"
+overflow-checks = true

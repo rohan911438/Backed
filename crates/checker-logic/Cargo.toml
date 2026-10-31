@@ -1,0 +1,14 @@
+[package]
+name = "backed-checker-logic"
+description = "Pure logic of the Backed checker (adapters, parsing, breach classification), shared by the contract and the CLI."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+# Plain library (no cdylib), so host tools like the CLI can use it on every
+# platform without linking a contract.
+[dependencies]
+near-sdk = { workspace = true }
+
+[dev-dependencies]
+near-sdk = { workspace = true, features = ["unit-testing"] }

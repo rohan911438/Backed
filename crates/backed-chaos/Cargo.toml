@@ -1,0 +1,24 @@
+[package]
+name = "backed-chaos"
+description = "Chaos testing for NEAR contracts: inject NEAR runtime failures, check owed <= held after every step."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[features]
+# The local NEAR sandbox runner (Linux, macOS or WSL). Off by default so the
+# plain unit tests build anywhere.
+sandbox = ["dep:near-workspaces", "dep:tokio", "dep:serde_json", "dep:anyhow"]
+
+[dependencies]
+near-workspaces = { version = "0.23.0", optional = true }
+tokio = { version = "1", features = ["rt-multi-thread"], optional = true }
+serde_json = { version = "1", optional = true }
+anyhow = { version = "1", optional = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+[[example]]
+name = "live"
+required-features = ["sandbox"]

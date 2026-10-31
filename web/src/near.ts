@@ -1,0 +1,244 @@
+// Browser-side NEAR reads. Every check pins owed and held to one block height,
+// the same method as the `backed` CLI, so in-flight transfers can't skew it.
+
+import { RPCS, type NetworkId } from "./config";
+
+export async function rpc(method: string, params: unknown, network: NetworkId = "mainnet"): Promise<any> {
+  const urls = RPCS[network];
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const url = urls[attempt % urls.length];
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
+      });
+      if (res.status === 429 || res.status >= 500) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      if (json.error) {
+        const msg = JSON.stringify(json.error);
+        if (/limit|Too many|discontinued/i.test(msg)) throw new Error(msg);
+        throw Object.assign(new Error(msg), { fatal: true });
+      }
+      return json.result;
+    } catch (e: any) {
+      if (e?.fatal) throw e;
+      lastError = e;
+      await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
+    }
+  }
+  throw lastError;
+}
+
+export async function finalBlock(network: NetworkId = "mainnet"): Promise<number> {
+  const r = await rpc("block", { finality: "final" }, network);
+  return r.header.height;
+}
+
+export async function view(
+  account: string,
+  method: string,
+  args: object,
+  block: number,
+  network: NetworkId = "mainnet",
+): Promise<string> {
+  const r = await rpc(
+    "query",
+    {
+      request_type: "call_function",
+      block_id: block,
+      account_id: account,
+      method_name: method,
+      args_base64: btoa(JSON.stringify(args)),
+    },
+    network,
+  );
+  if (r.error) throw new Error(r.error);
+  return new TextDecoder().decode(new Uint8Array(r.result));
+}
+
+export function parseU128(s: string): bigint | null {
+  const t = s.trim().replace(/^"|"$/g, "");
+  return /^\d+$/.test(t) ? BigInt(t) : null;
+}
+
+/** Rhea lending: owed = (supplied + reserved + prot_fee - borrowed) / 10^extra_decimals. */
+export function burrowOwed(json: string): bigint | null {
+  try {
+    const a = JSON.parse(json);
+    const inner =
+      BigInt(a.supplied.balance) + BigInt(a.reserved) + BigInt(a.prot_fee ?? "0") - BigInt(a.borrowed.balance);
+    return inner / 10n ** BigInt(a.config.extra_decimals);
+  } catch {
+    return null;
+  }
+}
+
+export type Adapter = "nep245" | "burrow" | "backed";
+
+/** Backed standard: owed comes from the contract's own `backed_solvency(token)` view. */
+export function backedOwed(json: string): bigint | null {
+  try {
+    const v = JSON.parse(json);
+    return v && typeof v.owed === "string" ? BigInt(v.owed) : null;
+  } catch {
+    return null;
+  }
+}
+
+export type Status = "backed" | "UNDER-BACKED" | "error";
+
+export interface Reading {
+  token: string;
+  symbol?: string;
+  decimals?: number;
+  owed: string | null;
+  held: string | null;
+  status: Status;
+  shortfall?: string | null;
+  error?: string | null;
+  block: number;
+  live?: boolean;
+}
+
+export async function checkToken(
+  target: string,
+  adapter: Adapter,
+  token: string,
+  block?: number,
+  network: NetworkId = "mainnet",
+): Promise<Pick<Reading, "owed" | "held" | "status" | "shortfall" | "error" | "block" | "live">> {
+  const b = block ?? (await finalBlock(network));
+  try {
+    const [owedRaw, heldRaw] = await Promise.all([
+      adapter === "nep245"
+        ? view(target, "mt_supply", { token_id: `nep141:${token}` }, b, network)
+        : adapter === "backed"
+          ? view(target, "backed_solvency", { token }, b, network)
+          : view(target, "get_asset", { token_id: token }, b, network),
+      view(token, "ft_balance_of", { account_id: target }, b, network),
+    ]);
+    const owed = adapter === "nep245" ? parseU128(owedRaw) : adapter === "backed" ? backedOwed(owedRaw) : burrowOwed(owedRaw);
+    const held = parseU128(heldRaw);
+    if (owed === null || held === null) throw new Error("unreadable response");
+    const under = held < owed;
+    return {
+      owed: owed.toString(),
+      held: held.toString(),
+      status: under ? "UNDER-BACKED" : "backed",
+      shortfall: under ? (owed - held).toString() : null,
+      error: null,
+      block: b,
+      live: true,
+    };
+  } catch (e: any) {
+    return { owed: null, held: null, status: "error", shortfall: null, error: String(e?.message ?? e), block: b, live: true };
+  }
+}
+
+export async function tokenMeta(
+  token: string,
+  block: number,
+  network: NetworkId = "mainnet",
+): Promise<{ symbol?: string; decimals?: number }> {
+  try {
+    const m = JSON.parse(await view(token, "ft_metadata", {}, block, network));
+    return { symbol: m.symbol, decimals: m.decimals };
+  } catch {
+    return {};
+  }
+}
+
+/** Human amount: 1234567 with 6 decimals → "1.23" ; large numbers compact. */
+export function formatUnits(raw: string | null | undefined, decimals?: number): string {
+  if (raw == null) return "—";
+  if (decimals == null) return BigInt(raw).toLocaleString("en-US");
+  const v = BigInt(raw);
+  const base = 10n ** BigInt(decimals);
+  const whole = v / base;
+  const frac = Number(v % base) / Number(base);
+  const n = Number(whole) + frac;
+  if (n >= 1e9) return (n / 1e9).toFixed(2) + "B";
+  if (n >= 1e6) return (n / 1e6).toFixed(2) + "M";
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + "K";
+  if (n >= 1) return n.toFixed(2);
+  if (n === 0) return "0";
+  return n.toPrecision(3);
+}
+
+/** held / owed as a percentage string, e.g. "100.004%". */
+export function coverage(owed: string | null, held: string | null): string {
+  if (owed == null || held == null) return "—";
+  const o = BigInt(owed);
+  if (o === 0n) return held === "0" ? "—" : "∞";
+  const bps = (BigInt(held) * 1_000_000n) / o; // millionths
+  return (Number(bps) / 10_000).toFixed(3) + "%";
+}
+
+/** A view call at the latest final block, parsed as JSON. */
+export async function viewJson<T = unknown>(network: NetworkId, account: string, method: string, args: object): Promise<T> {
+  const block = await finalBlock(network);
+  return JSON.parse(await view(account, method, args, block, network)) as T;
+}
+
+/** NEAR balance of an account, in NEAR (number, for display). */
+export async function nearBalance(network: NetworkId, account: string): Promise<number | null> {
+  try {
+    const r = await rpc("query", { request_type: "view_account", finality: "final", account_id: account }, network);
+    return Number(BigInt(r.amount) / 10n ** 20n) / 10_000;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Ref Finance v2 (v2.ref-finance.near): `owed` here is a FLOOR, the sum of every
+ * pool's reserves for the token. Users' internal deposits are owed too but Ref has
+ * no total view for them. If held < reserves, Ref is under-backed for sure.
+ */
+export const REF_TARGET = "v2.ref-finance.near";
+
+export async function refPoolReserves(block: number): Promise<Map<string, bigint>> {
+  const n = Number(JSON.parse(await view(REF_TARGET, "get_number_of_pools", {}, block)));
+  const pages = Array.from({ length: Math.ceil(n / 300) }, (_, i) => i * 300);
+  const sums = new Map<string, bigint>();
+  // A few pages at a time to stay polite with free RPCs.
+  for (let i = 0; i < pages.length; i += 4) {
+    const batch = await Promise.all(
+      pages.slice(i, i + 4).map(async (from) => JSON.parse(await view(REF_TARGET, "get_pools", { from_index: from, limit: 300 }, block))),
+    );
+    for (const pools of batch)
+      for (const p of pools as { token_account_ids: string[]; amounts: string[] }[])
+        p.token_account_ids.forEach((t, k) => sums.set(t, (sums.get(t) ?? 0n) + BigInt(p.amounts[k])));
+  }
+  return sums;
+}
+
+export async function checkRef(tokens: string[], block?: number): Promise<Reading[]> {
+  const b = block ?? (await finalBlock());
+  const sums = await refPoolReserves(b);
+  return Promise.all(
+    tokens.map(async (token) => {
+      const owed = sums.get(token) ?? 0n;
+      try {
+        const held = parseU128(await view(token, "ft_balance_of", { account_id: REF_TARGET }, b));
+        if (held === null) throw new Error("unreadable balance");
+        const under = held < owed;
+        return {
+          token,
+          ...(await tokenMeta(token, b)),
+          owed: owed.toString(),
+          held: held.toString(),
+          status: under ? "UNDER-BACKED" : "backed",
+          shortfall: under ? (owed - held).toString() : null,
+          error: null,
+          block: b,
+          live: true,
+        } as Reading;
+      } catch (e: any) {
+        return { token, owed: owed.toString(), held: null, status: "error", error: String(e?.message ?? e), block: b, live: true } as Reading;
+      }
+    }),
+  );
+}
