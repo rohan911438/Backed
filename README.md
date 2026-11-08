@@ -1,23 +1,45 @@
+<div align="center">
+
 # Backed
 
-**Does NEAR Intents actually hold every token it says you own? Backed checks, live, token by token.**
+### Never owe more than you hold.
 
-NEAR Intents keeps an internal ledger of user balances. The tokens behind those balances sit on separate token contracts. Backed reads both **at the same block** and compares them: what the protocol **owes** vs what it **holds**.
+**Proof of backing for NEAR protocols.** Backed reads what a protocol *owes* and what it *holds* at the same block, so anyone can check that every token is there. It also ships a Rust library that stops contracts from writing the bug that breaks this.
 
-On mainnet, of 370 NEP-141 tokens in `intents.near`, **362 are fully backed, 3 are under-backed and 5 can't be read**. Anyone can re-run the check from the [web app](https://backed-near.vercel.app) or the CLI.
+[Live app](https://backed-near.vercel.app) · [Findings](docs/FINDINGS.md) · [Claims and checks](#every-claim-and-how-to-check-it) · [Who it's for](#who-its-for-and-how-it-reaches-them) · [Roadmap](#roadmap-next-4-weeks)
 
-The same gap, a ledger that records more than the contract holds, is the bug behind three 2026 NEAR incidents worth **$22M+ exploited** ([sources below](#the-problem)). So Backed also ships the fix: a Rust library that stops contracts from writing that bug, and a sandbox harness that replays all three attacks to prove it.
+</div>
+
+---
+
+**In one paragraph.** NEAR Intents keeps an internal ledger of user balances, and the tokens behind those balances sit on separate token contracts. When a cross-contract callback fails or trusts a reported number, the ledger can record tokens the contract doesn't hold. That bug family is behind three 2026 NEAR incidents worth **$22M+** ([sources](#the-problem)). Backed detects it from public chain state, with no reporter or oracle to trust, prevents it in code, and proves the fix by replaying all three attacks on a NEAR sandbox.
+
+**Latest daily scan** (2026-11-09, block 223,790,368): of **387** NEP-141 tokens in `intents.near`, **380 are fully backed, 2 are under-backed and 5 can't be read**. The scan runs every day on GitHub Actions ([history](data/backing-history.csv)). Anyone can re-run it from the [web app](https://backed-near.vercel.app) or the CLI.
 
 | | |
 |---|---|
-| **Live app** | **<https://backed-near.vercel.app>**: live backing for every Intents token. No wallet needed to read. |
-| **Live finding** | 362 of 370 NEP-141 tokens in `intents.near` fully backed; 3 under-backed, **each traced to the transaction that caused it** ([findings](docs/FINDINGS.md)) |
-| **Replays** | 3 of 3 attacks break the naive vault; 3 of 3 are blocked by the Backed vault |
-| **Checker contract** | [`simplekilt7490.testnet`](https://testnet.nearblocks.io/address/simplekilt7490.testnet): records backing on-chain, signed from your wallet |
-| **Network** | Mainnet protocols are **read** live (read-only). The checker contract is deployed on **testnet**. |
-| **MCP server** | Published in the [official MCP Registry](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.rohan911438/backed) as `io.github.rohan911438/backed`; hosted at `https://backed-near.vercel.app/api/mcp` |
+| **Live app** | **<https://backed-near.vercel.app>**: backing for every Intents token, Rhea lending and Ref Finance. No wallet needed to read. |
+| **Live finding** | Every under-backed Intents token traced to the transaction that caused it, including a sell-tax refund flaw that is still growing the gap ([findings](docs/FINDINGS.md)) |
+| **Replays** | 3 of 3 attacks break the naive vault; 3 of 3 are blocked by the Backed vault, in CI on every push |
+| **Checker contract** | [`simplekilt7490.testnet`](https://testnet.nearblocks.io/address/simplekilt7490.testnet): anyone can record backing on-chain from their wallet |
+| **Network** | Mainnet protocols are **read live** (read-only). The checker contract, which only records results, runs on **testnet**; the same wasm is ready for mainnet ([checklist](docs/MAINNET.md)). |
+| **MCP server** | In the [official MCP Registry](https://registry.modelcontextprotocol.io/v0/servers?search=io.github.rohan911438/backed) as `io.github.rohan911438/backed`; hosted at `https://backed-near.vercel.app/api/mcp` |
+| **Release** | CLI [v0.1.1](https://github.com/rohan911438/Backed/releases) for Linux, macOS and Windows, plus the checker wasm |
 | **Tests** | 36 unit tests + 3 sandbox replays, run in CI on every push |
 | **Tracks** | Open Innovation · Unstoppable DeFi |
+
+### Every claim, and how to check it
+
+| Claim | Check it yourself | What you should see |
+|---|---|---|
+| Backed reads live mainnet state, not a cached report | Web app → **Live backing** → **Verify** on any row | Owed and held re-read from mainnet RPC at one block, in your browser |
+| Some Intents tokens are under-backed today | Web app → filter **issues**, or `backed scan-intents` | `ninu-4.nearlytrade.near` and `nvdastest.optimal-bone.near` under-backed |
+| We know why | [`docs/FINDINGS.md`](docs/FINDINGS.md) and tx [`hmKEgaX2…`](https://nearblocks.io/txns/hmKEgaX2gX1pinNzAPisYny8Xk1WFg2Fz1KxMGcUSYv) | A 3% sell tax reported as "refunded"; Intents credits 1,133.80 NINU that never came back |
+| The library stops the 2026 attacks | Web app → **Replays**, or `backed chaos` | Naive vault: BROKEN, attacker gains. Backed vault: SAFE, attacker gains 0 |
+| The checker needs no trusted reporter | Web app → **Checker** → **Preview**, then **Sign & record** | The contract reads both numbers itself and stores Healthy, Suspected or Confirmed |
+| It runs every day on its own | [`data/backing-history.csv`](data/backing-history.csv) and the commit log | One row and one "Daily backing scan" commit per day since 2026-10-25 |
+| AI agents can use it | `claude mcp add --transport http backed https://backed-near.vercel.app/api/mcp`, then ask "Is it safe to deposit NINU into NEAR Intents?" | *UNDER-BACKED, don't deposit* with the block height and both numbers |
+| NEAR's own engineers needed this check | [`scripts/list_nep245_tokens.sh`](https://github.com/near/intents/blob/0c1a530c8da337008e28baa9987a816249d707e6/scripts/list_nep245_tokens.sh) in near/intents | The same owed-vs-held comparison, written by hand after the October exploit |
 
 ### Try it in one minute
 
@@ -74,22 +96,44 @@ Backed is that missing layer. Three principles guide it:
 6. **Agent-native.** AI agents check before they deposit (MCP) and write safe NEAR contracts by default (`SKILL.md`).
 7. **A path to a standard.** One view method, [`backed_solvency`](docs/NEP-backed-solvency.md), makes any protocol verifiable with no custom adapter.
 
-**Who it's for**
+## Who it's for and how it reaches them
 
-| Who | What they get |
-|---|---|
-| **Users and wallets** | "Is this protocol holding my tokens?" answered in one click, before a deposit |
-| **AI agents** | A tool call that returns *BACKED* or *UNDER-BACKED, don't deposit* |
-| **Contract developers** | A library that makes the async-accounting bug impossible to write, plus attack replays for CI |
-| **Protocols** | A free, public, verifiable proof of backing their users can check themselves |
-| **The NEAR ecosystem** | A shared standard so every token-holding contract can be checked the same way |
+Everything below works today, without a mainnet checker: every reading comes from live mainnet RPC, and the checker contract is only an optional on-chain record of those readings. Full plan: [`Idea/11-go-to-market.md`](Idea/11-go-to-market.md).
+
+### Target users, in the order we go after them
+
+| # | Who | Their problem | What they use today | First step |
+|---|---|---|---|---|
+| 1 | **NEAR DeFi protocols with an internal ledger** (Intents, Rhea lending, Ref, new vaults and lending markets) | One bad callback can cost millions, and there is no public way to show users the books are backed | Web app and daily scan (no code change); `backed` library and `backed chaos` for new code | We share the finding with the protocol; they add `backed_solvency` (one view method) |
+| 2 | **AI agents and agent wallets that move funds** | An agent can't tell whether a deposit target is solvent | Hosted MCP server: `check_backing` returns *BACKED* or *UNDER-BACKED, don't deposit* | One line: `claude mcp add --transport http backed …`, or install from the MCP Registry |
+| 3 | **NEAR contract developers and AI coding agents** | Async compensation logic is hand-written and easy to get wrong | `backed` crate, `skill/SKILL.md`, attack replays in CI | Add the git dependency; drop `SKILL.md` into the agent's skills |
+| 4 | **Wallets and deposit front-ends** | Users deposit into contracts they can't inspect | CLI `--json` and the MCP endpoint as a pre-deposit check | Call the check before showing "Deposit" |
+| 5 | **Auditors and security teams** | Audits are one-off; NEAR runtime failures (log limit, out-of-gas, lying venues) are hard to reproduce | `backed-chaos` failure catalog F1–F8 and the replays | Run the replays against a client's vault in the sandbox |
+
+### How someone starts, by role
+
+| You are | Do this | You get |
+|---|---|---|
+| A user | Open <https://backed-near.vercel.app> → **Live backing** | Owed vs held for every Intents token; **Verify** re-reads it live |
+| An agent builder | `claude mcp add --transport http backed https://backed-near.vercel.app/api/mcp` | A pre-deposit tool call with a verdict, block height and numbers |
+| A protocol team | `backed check <your-contract> --token <token> --json` in a cron, or fork the repo and keep [`monitor.yml`](.github/workflows/monitor.yml) | A daily backing check with GitHub issue, Discord or Telegram alerts |
+| A contract developer | `backed = { git = "https://github.com/rohan911438/Backed" }` and follow [`backed-vault`](contracts/examples/backed-vault/src/lib.rs) | Balances that only grow from delivered tokens; callbacks that can't panic |
+| An auditor | `backed chaos --scenario intents` | A step-by-step owed/held trace of each attack |
+
+### Distribution and sustainability
+
+- **Channels:** the official MCP Registry (live), GitHub releases (live), the `backed_solvency` NEP discussion with protocol teams, responsible disclosure to NEAR Intents as the first protocol conversation, and the agent skill in AI coding tools.
+- **Cost to run:** close to zero. The web app is static, the scan runs on free GitHub Actions, and the MCP endpoint is one serverless function.
+- **Model:** the library, checker, CLI and MCP server stay free and open source. Options to fund the work: ecosystem grants for the NEP and checker, and paid custom adapters and alerting for protocols that want a checker integration done for them.
 
 ---
 
 ## Contents
 
+- [Every claim, and how to check it](#every-claim-and-how-to-check-it)
 - [Why we built Backed](#why-we-built-backed)
 - [What makes Backed different](#what-makes-backed-different)
+- [Who it's for and how it reaches them](#who-its-for-and-how-it-reaches-them)
 - [The problem](#the-problem)
 - [How one of these bugs works](#how-one-of-these-bugs-works)
 - [What Backed does](#what-backed-does)
@@ -103,7 +147,7 @@ Backed is that missing layer. Three principles guide it:
 - [Daily monitoring](#daily-monitoring)
 - [For AI coding agents](#for-ai-coding-agents)
 - [Architecture and workflows](#architecture-and-workflows)
-- [Roadmap](#roadmap)
+- [Roadmap: next 4 weeks](#roadmap-next-4-weeks)
 - [Repository layout](#repository-layout)
 - [Limits](#limits)
 - [Hackathon](#hackathon)
@@ -165,6 +209,7 @@ The vault's own books say everything is fine, but the token contract disagrees. 
 | [`backed-chaos`](crates/backed-chaos) | Test harness on a local NEAR sandbox | **Prove.** Deploys real contracts, replays each 2026 attack as real transactions, and reads owed vs held after every step. Failure catalog F1–F8 (out of gas, log overflow, absurd refunds, direct callback calls, lying venues, …). |
 | [Checker](contracts/checker) | NEAR contract | **Verify.** Anyone can record on-chain whether a protocol holds what it owes, read from the protocol's and the token's own views. No trusted reporter. `Suspected` → `Confirmed` after 30+ blocks. |
 | [CLI](cli), [web app](web), [skill](skill/SKILL.md) | Rust binary, React app, `SKILL.md` | **Use.** One-command checks, a live explorer with wallet-signed attestations, and AI coding agents that write NEAR contracts with Backed by default. |
+| [Daily scan](.github/workflows/monitor.yml), [MCP server](api/mcp.ts) | GitHub Actions job, Vercel function | **Watch.** Every Intents token checked daily with history and alerts; AI agents check backing before they deposit. |
 
 ## Proof: the attack replays
 
@@ -202,11 +247,12 @@ Real output (`backed chaos --scenario intents`):
 
 ## Live on NEAR
 
-### Mainnet readings (2026-10-23)
+### Mainnet readings
 
 Backing = what the protocol holds (`ft_balance_of`) vs what it owes (its own views), **read at the same block height**, so in-flight transfers can't skew the result.
 
-- **NEAR Intents** (`intents.near`, block 221,256,203): of 370 NEP-141 tokens, **362 fully backed**, **3 under-backed** (`ninu-4.nearlytrade.near`, `batman-4.nearlytrade.near`, test token `nvdastest.optimal-bone.near`), 5 unreadable (broken token contracts). We traced each shortfall to the transaction that created it ([findings](docs/FINDINGS.md)). Two memecoins charge a sell tax and then tell Intents the taxed part was "refunded"; Intents credits that refund although no tokens came back, so every taxed sell grows the gap by exactly the tax. The test token reported a deposit that never moved tokens. Small amounts, same bug as Rhea: a ledger crediting what it was told, not what arrived.
+- **NEAR Intents, latest** (`intents.near`, 2026-11-09, block 223,790,368): of 387 NEP-141 tokens, **380 fully backed**, **2 under-backed** (`ninu-4.nearlytrade.near` and test token `nvdastest.optimal-bone.near`), 5 unreadable (broken token contracts). `batman-4.nearlytrade.near` was under-backed until 2026-10-30, when its gap closed. Every day's result is in [`data/backing-history.csv`](data/backing-history.csv).
+- **NEAR Intents, first scan** (block 221,256,203, 2026-10-23): of 370 NEP-141 tokens, **362 fully backed**, **3 under-backed** (NINU, BATMAN and tNVDAs), 5 unreadable. We traced each shortfall to the transaction that created it ([findings](docs/FINDINGS.md)). Two memecoins charge a sell tax and then tell Intents the taxed part was "refunded"; Intents credits that refund although no tokens came back, so every taxed sell grows the gap by exactly the tax. The test token reported a deposit that never moved tokens. Small amounts, same bug as Rhea: a ledger crediting what it was told, not what arrived.
 - **Rhea lending** (`contract.main.burrow.near`): every major token fully backed.
 - **Ref Finance** (`v2.ref-finance.near`, block 221,566,295): all 8,991 pools read at one block. For 13 major tokens, holdings are above the pools' total reserves. Ref has no view for the total of users' internal deposits, so this is a **floor** check: it can prove a shortfall, not full backing (`backed scan-ref`).
 
@@ -607,47 +653,33 @@ flowchart LR
 
 Full design: [`Idea/03-architecture.md`](Idea/03-architecture.md).
 
-## Roadmap
+## Roadmap: next 4 weeks
 
-From one protocol to a NEAR standard.
+Everything that's already shipped is listed under [what Backed does](#what-backed-does). The plan below covers only the four weeks after the hackathon (Nov 15 – Dec 12, 2026), and each item builds on code that already exists.
 
 ```mermaid
 timeline
-    title Backed roadmap
-    Shipped (Oct 2026) : backed library and six rules
-                       : 3 attack replays in CI
-                       : Checker on testnet
-                       : Live backing for Intents, Rhea, Ref
-                       : Daily scan with issue and chat alerts
-                       : MCP server (hosted and CLI), agent skill
-                       : Draft NEP for backed_solvency
-    Next (Nov 2026)    : Checker on mainnet with Intents and Rhea adapters
-                       : Share the tax-refund finding with NEAR Intents
-                       : Daily job records attestations on-chain
-                       : Open the NEP discussion with protocol teams
-    Later (2027)       : Wallet warning before depositing into an under-backed token
-                       : Protocols self-register through backed_solvency
-                       : Checker ownership to a multisig or DAO
-                       : Chaos harness for any contract's wasm
+    title Backed: the 4 weeks after the hackathon
+    Week 1 (Nov 15–21)    : Responsible disclosure of the tax-refund finding to NEAR Intents
+                          : Open the backed_solvency NEP discussion with protocol teams
+    Week 2 (Nov 22–28)    : Checker on mainnet with Intents and Rhea adapters
+                          : Daily job also records attestations on-chain
+    Week 3 (Nov 29–Dec 5) : Protocols self-register via backed_solvency
+                          : Checker ownership to a multisig or DAO
+    Week 4 (Dec 6–12)     : Wallet warning before depositing into an under-backed token
+                          : Chaos harness that runs the replays against any contract's wasm
 ```
 
-| Phase | Item | Status |
-|---|---|---|
-| **Shipped** | `backed` library: `Delivered`/`Claimed`, capped refunds, log budget, reconcile | ✅ |
-| | Three 2026 attacks replayed on a NEAR sandbox, in CI | ✅ |
-| | Checker contract on testnet, abuse-resistant (pays own storage, logs on state change) | ✅ |
-| | Live backing for NEAR Intents, Rhea lending, Ref Finance (floor) | ✅ |
-| | Daily scan, history CSV, GitHub issue + Discord/Telegram alerts | ✅ |
-| | MCP server, hosted and in the CLI, listed in the official MCP Registry; agent skill | ✅ |
-| | Draft NEP: [`backed_solvency`](docs/NEP-backed-solvency.md) | ✅ |
-| **Next** | Checker on mainnet ([checklist](docs/MAINNET.md)) | Ready, needs ~2 NEAR |
-| | Responsible disclosure of the tax-refund finding to NEAR Intents | Planned |
-| | Daily job also records attestations on-chain | Planned |
-| | NEP discussion with NEAR protocol teams | Planned |
-| **Later** | Wallet integration: warn before depositing into an under-backed token | Idea |
-| | Protocols self-register via `backed_solvency` | Contract support exists |
-| | Checker ownership to a multisig or DAO (`set_owner`) | Contract support exists |
-| | Chaos harness that runs the replays against any contract's wasm | Idea |
+| Week | Item | Starting point today | Done when |
+|---|---|---|---|
+| **1** | Responsible disclosure of the tax-refund finding to NEAR Intents | Root cause traced to the transaction ([findings](docs/FINDINGS.md)) | Intents team has the report and the reproduction |
+| **1** | NEP discussion with NEAR protocol teams | Draft spec [`docs/NEP-backed-solvency.md`](docs/NEP-backed-solvency.md) | Proposal posted for public discussion |
+| **2** | Checker on mainnet | Same wasm as testnet; [checklist](docs/MAINNET.md) and `preflight` ready; needs ~2 NEAR | Intents and Rhea attestations on mainnet |
+| **2** | Daily job also records attestations on-chain | `monitor.yml` scan + `attest` command | A mismatch in the daily scan triggers an on-chain `attest` |
+| **3** | Protocols self-register via `backed_solvency` | `register_self` in the checker; `backed-vault` already reports through it | One external contract reports its books through the standard |
+| **3** | Checker ownership to a multisig or DAO | `set_owner` / `get_owner` in the checker | Adapter management no longer depends on one key |
+| **4** | Wallet warning before depositing into an under-backed token | `check_backing` in the hosted MCP server; CLI `--json` | A pre-deposit check a wallet or front-end can call, with a working example |
+| **4** | Chaos harness that runs the replays against any contract's wasm | Replays run against `naive-vault` and `backed-vault` | `backed chaos --wasm <file>` replays the three attacks against your own vault |
 
 ## Repository layout
 
@@ -693,6 +725,7 @@ Idea/                   design documents, incl. user workflows
 | [Why NEAR](Idea/05-why-near.md) | [Competitors](Idea/06-competitors.md) |
 | [Deliverables and plan](Idea/07-deliverables-and-plan.md) | [Design audit](Idea/08-design-audit.md) |
 | [Demo and pitch](Idea/09-demo-and-pitch.md) | [User workflows](Idea/10-user-workflows.md) |
+| [Go-to-market and target users](Idea/11-go-to-market.md) | [Findings](docs/FINDINGS.md) |
 
 ## License
 

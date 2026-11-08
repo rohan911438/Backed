@@ -12,13 +12,17 @@
 
 ## 3. NEAR's biggest product needs it now
 - NEAR Intents moves 4B+ per month in volume (Illia's figure) and holds ~16.36M wNEAR, ~4.29M USDC and more (our scan, Oct 23).
-- It was exploited 3 weeks ago through exactly this bug class. NEAR's engineers then wrote a manual script for this exact check.
+- It was exploited on 2026-10-01 through exactly this bug class, and NEAR's engineers then wrote a manual script for this exact check. Backed's daily scan still finds 2 under-backed tokens in it today, each traced in `docs/FINDINGS.md`.
 - Illia: "At this scale, we have to hold ourselves to a higher security standard." Backed is that standard, packaged.
 
 ## 4. It fits NEAR's direction
-- **AI agents:** NEAR's strategy is to be the place agents transact. Agents need a machine-readable "is this protocol safe to deposit into?" signal, and AI coding agents need safe defaults when writing NEAR contracts.
+- **AI agents:** NEAR's strategy is to be the place agents transact. Agents need a machine-readable "is this protocol safe to deposit into?" signal (Backed's MCP server, in the official MCP Registry), and AI coding agents need safe defaults when writing NEAR contracts (`skill/SKILL.md`).
 - **Formal verification:** NEAR announced formal verification for its release process. Backed complements it: verification proves code matches a spec; Backed enforces the money invariant at runtime and tests NEAR's runtime failure modes.
 
 ## 5. Built with NEAR's own tools
-- near-sdk 5.x (Intents uses 5.29.0), NEP-141/145/245/297 standards, near-sandbox for chaos tests, near-api (Rust) for the CLI, GitHub Pages plus public RPC for the web page.
+- near-sdk 5.x (Intents uses 5.29.0), NEP-141/145/245/297 standards, near-sandbox for chaos tests, NEAR JSON-RPC with `block_id` for exact same-block reads, wallet-selector for wallet-signed attestations, and public RPC straight from the browser (no backend).
 - Real adapters verified on mainnet: `intents.near` (`mt_supply`, `mt_tokens`), `contract.main.burrow.near` (`get_asset`), `aggregate-oracle.near` (`list_prices`).
+
+## 6. Fit with the hackathon tracks
+- **Unstoppable DeFi (`defi`):** a protocol that holds user funds should be able to prove it holds them, with no custodian or reporter in the loop. Backed does that for NEAR Intents, the track's settlement layer, and gives vault and lending builders a library that keeps the books backed.
+- **Open Innovation (`open`):** a new primitive for NEAR, *proof of backing* as a standard view (`backed_solvency`), usable by protocols, wallets and AI agents.

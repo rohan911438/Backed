@@ -1,63 +1,60 @@
-# 07 — Deliverables, SDK/CLI/Web Decision, Plan, Budget
+# 07 — Deliverables, Scope Decisions, Budget
 
-## Do we need an SDK, a CLI, or just a web app?
+## What was delivered
 
-| Piece | Build it? | Why |
+| # | Deliverable | Planned | Delivered | Where to check |
+|---|---|---|---|---|
+| 1 | `backed` Rust library | ✅ | ✅ `Ledger`, `Delivered`/`Claimed`, capped refunds, `LogBudget`, race-free reconcile, `backed_solvency` | `crates/backed` |
+| 2 | Three attack replays (Intents, SWEAT/HOT, Rhea) | ✅ | ✅ 3 of 3 break the naive vault, 3 of 3 blocked by the Backed vault, in CI | `backed chaos`, web app → Replays |
+| 3 | Checker contract | Mainnet | ✅ **Testnet** (by decision, see below); mainnet-ready, same wasm | `simplekilt7490.testnet`, `docs/MAINNET.md` |
+| 4 | Live web page | GitHub Pages | ✅ Vercel, multi-page app with wallet signing | <https://backed-near.vercel.app> |
+| 5 | CLI release | ✅ | ✅ v0.1.1, Linux/macOS/Windows | GitHub releases |
+| 6 | README for AI judges ("do X → see Y") | ✅ | ✅ including a claims-and-checks table | `README.md` |
+| 7 | Draft NEP `backed_solvency` | ✅ | ✅ and used end to end on testnet by `backed-vault` | `docs/NEP-backed-solvency.md` |
+| 8 | AI coding agent skill | ✅ | ✅ | `skill/SKILL.md` |
+| 9 | Daily scan with history and alerts | Not planned | ✅ added | `.github/workflows/monitor.yml`, `data/backing-history.csv` |
+| 10 | Root-cause findings for under-backed tokens | Not planned | ✅ added | `docs/FINDINGS.md` |
+| 11 | MCP server | Not in v1 | ✅ added: hosted + local, listed in the official MCP Registry | `api/mcp.ts`, `server.json` |
+| 12 | Ref Finance floor check | Not planned | ✅ added | `backed scan-ref`, web app |
+| 13 | Demo video + X post | ✅ | The team lead records and posts | — |
+
+## Why the checker stays on testnet for this submission
+
+- Every **reading** in the product (web app, CLI, daily scan, MCP) already comes from live **mainnet** RPC. The checker only **records** a reading on-chain.
+- Testnet shows the full on-chain flow: wallet-signed `attest`, cross-contract reads, Suspected → Confirmed, storage refunds, and the `backed_solvency` standard end to end with a real deposit.
+- The mainnet deploy is prepared (`live mainnet <acct> preflight` prints the cost; about 1.91 NEAR for the 161 KB wasm) and scheduled for week 2 of the roadmap.
+
+## Scope decisions
+
+| Piece | Built? | Why |
 |---|---|---|
-| **Rust library (`backed` crate)** | ✅ **Yes, core** | It *is* the SDK. Prevention only happens inside contracts, and a web app can't do that. |
-| **Chaos harness (`backed-chaos`)** | ✅ **Yes, core** | It proves the claims: the three incident replays are the strongest demo and what AI judges can run. |
-| **Checker contract (mainnet)** | ✅ **Yes** | Required for "on mainnet" and for trustless, on-chain verification others can rely on. Small; fits the budget. |
-| **CLI (`backed`)** | ✅ **Yes, thin** | One binary for judges (`backed check intents.near`), CI (`backed chaos`), the keeper cron and AI agents (a CLI is the simplest agent tool). Reuses the Rust adapter code. |
-| **Web page** | ✅ **Yes, static** | The public face for the demo: live Intents backing token by token, Rhea, breach history. No backend, so it costs nothing. |
-| **AI-coding-agent skill (SKILL.md)** | ✅ **Yes, tiny** | Gets Backed used by default by Claude Code / Codex. Half a day of work. |
-| JS/TS SDK | ❌ Not in v1 | The web page reads RPC directly; no outside JS users yet. |
-| MCP server | ❌ Not in v1 | CLI + skill already give agents everything; can be added later in a day. |
-| Backend server / database | ❌ No | Static page + free cron + on-chain records are enough. Nothing to host or pay for. |
+| **Rust library** | ✅ core | Prevention only happens inside contracts; a web app can't do it. |
+| **Chaos harness** | ✅ core | It proves the claims, and judges (human or AI) can run it. |
+| **Checker contract** | ✅ | Trustless on-chain record others can build on. |
+| **CLI** | ✅ thin | One binary for judges, CI, the daily job and agents. Shares the checker's logic crate. |
+| **Web app** | ✅ static | The public face; reads RPC from the browser, so nothing to host or pay for. |
+| **MCP server** | ✅ added | Agents that move funds needed a one-call check; a CLI alone wasn't enough. |
+| JS/TS SDK | ❌ | The web app reads RPC directly; no outside JS users yet. |
+| Backend / database | ❌ | Static app + free cron + on-chain records are enough. |
 
-**Answer:** a web app alone would look like "just a dashboard", which is the scanning trap. The library + chaos harness are what make it infrastructure. The web page and CLI are how people see and use it.
-
-## Deliverables (what the judges get)
-1. **Public GitHub repo** with: `crates/backed`, `crates/backed-chaos`, `contracts/checker`, `contracts/examples/{naive,backed}-*`, `cli/`, `web/`, `skill/SKILL.md`.
-2. **Three replay tests**: `cargo test replay_` shows naive contracts losing money and Backed contracts surviving, for Intents, Rhea and SWEAT/HOT patterns.
-3. **Checker contract on mainnet** with Intents and Rhea adapters, plus real attestations.
-4. **Live web page** (GitHub Pages).
-5. **CLI release** (prebuilt binary + `cargo install`).
-6. **README written for AI judges**: what, why, and "do X → see Y" steps.
-7. **Demo video + X post** saying it was built at NEAR HACKATHON.
-8. **Draft NEP text** for `backed_solvency`.
-
-## 14-day plan (Nov 1–14, 2026)
-
-| Day | Work | Done when |
-|---|---|---|
-| 1 | Repo, WSL sandbox, mainnet checks: `attest` gas estimate, checker size estimate | Sandbox test runs; budget confirmed |
-| 2–3 | `Ledger`, `Delivered`/`Claimed`, safe withdraw, constant-time invariant | Unit tests green |
-| 4 | Safe receiver: registry check, provisional credit, infallible resolve (caps → log budget → gas) | F2/F4 cases pass |
-| 5 | Race-free `reconcile` + breach mode + `backed_solvency` view | Reconcile tests with in-flight transfers show no false alarms |
-| 6–7 | `backed-chaos`: sandbox runner, invariant oracle, injections F1–F8, helper contracts | Harness flags the naive contracts |
-| 8 | Three replays: naive vs Backed | `cargo test replay_` tells the story |
-| 9–10 | Checker contract: adapters, Suspected/Confirmed, storage deposits; deploy to mainnet | Real attestations for Intents and Rhea on mainnet |
-| 11 | CLI: `check`, `scan`, `attest`, `chaos`; GitHub Actions keeper | `backed scan intents.near` matches our research numbers |
-| 12 | Web page (static) + SKILL.md | Live page online |
-| 13 | README for AI judges, NEP draft, polish, stretch (run chaos against near/intents v0.4.4) | Fresh-clone instructions work end to end |
-| 14 | Demo video, X post (you publish), make repo public, submit (after you confirm the payload) | Submission returns 201 |
-
-**Cut list if behind (in order):** stretch goal → NEP text → F8 injection → web history view → Rhea adapter (keep Intents).
+A web app alone would be "just a dashboard". The library and replays make it infrastructure; the web app, CLI and MCP are how people use it.
 
 ## Budget
+
 | Item | Cost |
 |---|---|
-| Checker contract deploy (**measured: 156KB** with cargo-near 0.22, at 1 NEAR / 100KB of storage) | ~1.56 NEAR |
-| Mainnet attestations during the demo (~0.003 NEAR each, estimated) | <0.1 NEAR |
-| Everything else (sandbox, GitHub Pages, Actions cron, RPC) | free |
-| **Total** | **~1.7 NEAR ≈ $8–9** at ~$4.9/NEAR |
+| Testnet checker and example vault | Free (testnet NEAR) |
+| Web app (Vercel), daily scan (GitHub Actions), MCP endpoint (one Vercel function), RPC | Free |
+| Mainnet checker deploy (roadmap week 2) | ~1.91 NEAR once, storage for 161 KB |
+| Mainnet attestations | 0.005 NEAR attached per call, unused storage refunded |
 
-Keeping the checker contract small (no heavy dependencies, opt-level "z", wasm-opt) is what keeps this near $5.
+## The next 4 weeks
 
-## Submission checklist (from HACKATHON.md)
-- [ ] Repo public before 2026-11-14 23:59 UTC
-- [ ] X post by you: built at NEAR HACKATHON, with demo video or screenshots
-- [ ] Tracks: `security`, `defi`, `open` (+ `agents` if the skill and agent check are strong)
-- [ ] Mainnet NEAR account for payout (you create it)
-- [ ] "What we built" text (20–2000 chars)
-- [ ] Payload printed and confirmed by you before sending; one attempt only
+| Week | Work |
+|---|---|
+| 1 (Nov 15–21) | Responsible disclosure of the tax-refund finding to NEAR Intents; open the `backed_solvency` NEP discussion |
+| 2 (Nov 22–28) | Checker on mainnet with Intents and Rhea adapters; daily job records an on-chain attestation on a mismatch |
+| 3 (Nov 29–Dec 5) | First external protocol self-registers via `backed_solvency`; checker ownership to a multisig (`set_owner`) |
+| 4 (Dec 6–12) | Wallet pre-deposit check example; chaos replays against any contract's wasm |
+
+Go-to-market for the same period: [11-go-to-market.md](11-go-to-market.md).

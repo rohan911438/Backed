@@ -37,21 +37,34 @@ On Ethereum a transaction is all-or-nothing, so this family barely exists there.
 
 All three: **an async step's real outcome never reached the ledger correctly.**
 
-## Our live mainnet evidence (2026-10-23)
+## Our live mainnet evidence
 
 Backing check = `held` (token contract's `ft_balance_of(protocol)`) vs `owed` (the protocol's own liability views), read **at the same block height**.
+
+### Summary for judges
+
+| Evidence | Value | Re-check it |
+|---|---|---|
+| Latest daily Intents scan (2026-11-09, block 223,790,368) | 387 NEP-141 tokens: **380 backed, 2 under-backed, 5 unreadable** | `backed scan-intents`, or the web app's Live backing page |
+| Daily history | One row per day since 2026-10-23 | [`data/backing-history.csv`](../data/backing-history.csv) |
+| Root cause of each under-backed token | Traced to transactions: sell tax reported as a refund (NINU, BATMAN); a deposit that never moved tokens (tNVDAs) | [`docs/FINDINGS.md`](../docs/FINDINGS.md) |
+| BATMAN | Under-backed from block 220,025,605; gap closed on 2026-10-30 | History CSV |
+| Rhea lending | All major tokens backed | Web app → Rhea tab |
+| NEAR's own version of the check | `scripts/list_nep245_tokens.sh`, written after the October exploit | [near/intents @ 0c1a530c](https://github.com/near/intents/blob/0c1a530c8da337008e28baa9987a816249d707e6/scripts/list_nep245_tokens.sh) |
+
+### First scans (2026-10-23)
 
 **NEAR Intents (`intents.near`, v0.4.5), snapshot block 221,249,220**
 - 87,327 token ids registered: 370 NEP-141, 339 NEP-245, 86,618 NEP-171 (NFTs).
 - NEP-141 checked: **342 fully backed** (44 with a small surplus), **2 under-backed**, 26 not checkable (23 because of a discontinued RPC endpoint, 3 token-side errors).
 - **Full rescan with the `backed` CLI (block 221,256,203):** all 370 read: **362 backed, 3 under-backed, 5 unreadable** (broken token contracts, e.g. `aurora`'s balance view is not callable as a view). The third under-backed token is `nvdastest.optimal-bone.near`, which looks like a test token.
-- Under-backed: `ninu-4.nearlytrade.near` (NEAR INU) short 1.19e21 base units; `batman-4.nearlytrade.near` (BATMAN) short 2.56e20 base units. Both are launchpad memecoins whose total supply shrinks (burns). The shortfall is consistent with token mechanics Intents' ledger doesn't see (burns or transfer fees): **the same "credited ≠ received" class, small scale.** Not claimed as an exploit; flagged for investigation.
+- Under-backed: `ninu-4.nearlytrade.near` (NEAR INU) short 1.19e21 base units; `batman-4.nearlytrade.near` (BATMAN) short 2.56e20 base units. Both are launchpad memecoins. **Traced on 2026-10-25:** they charge a sell tax and their `ft_resolve_transfer` reports the taxed part as refunded; Intents credits that "refund" although no tokens came back, so each taxed sell grows the gap by exactly the tax ([findings](../docs/FINDINGS.md)). **The same "credited ≠ received" class as Rhea, at small scale.** Not claimed as an exploit; to be disclosed to the Intents team.
 - Major tokens: wNEAR owes 16,360,481 / holds 16,360,501; USDC 4,286,910 / 4,291,913; USDT 513,080 / 513,100; ZEC 28,659.99 / 28,660.05; nBTC 141.52 / 141.52.
 
 **Rhea lending (`contract.main.burrow.near`)**: owed = supplied + reserved + protocol fees − borrowed (adjusted for `extra_decimals`).
 - wNEAR 1.0020, USDT 1.0112, USDC 1.0114, ETH 1.6223 (untracked surplus), nBTC 1.0004, ZEC 1.0001: all backed.
 
-**Conclusion:** the check works trustlessly against NEAR's largest money pools today, and it already surfaces real, unexplained mismatches.
+**Conclusion:** the check works trustlessly against NEAR's largest money pools today, and it already surfaces real mismatches, each one traced to the transaction that created it.
 
 ## Why the AI era makes it urgent
 - Anthropic's SCONE-bench research (late 2025): AI agents produced working exploits worth ~$4.6M on contracts released after March 2025; reported scan cost ≈ $1 per contract.

@@ -15,7 +15,7 @@
          │ only when a mismatch is seen                    │ cross-contract views
          ▼                                                 │
  ┌────────────────────────────────────────────────────────┴───┐      ┌─────────────────────┐
- │ Backing checker contract (mainnet)                          │◀─────│ web page (static)   │
+ │ Backing checker contract (testnet)                          │◀─────│ web page (static)   │
  │ attest(target, token) → Attestation, Suspected/Confirmed    │      │ agents, wallets      │
  └─────────────────────────────────────────────────────────────┘      └─────────────────────┘
 ```
@@ -118,7 +118,7 @@ Runs in the NEAR sandbox (near-sandbox on Linux/WSL) against a compiled contract
 
 ---
 
-## 3. Backing checker contract (mainnet)
+## 3. Backing checker contract (live on testnet, mainnet-ready)
 
 ### Interface
 ```rust
@@ -151,8 +151,8 @@ Real breaches persist (Intents' unbacked balances lasted 2 days); in-flight nois
 ### Storage and cost
 - One small record per (target, token) plus a bounded breach log. Every attest attaches 0.005 NEAR; the checker keeps only the storage the call adds and refunds the rest. A breach is logged only when a pair changes state.
 - **Lazy attestation:** the contract isn't polled. The free off-chain scanner (§4) watches continuously and calls `attest` only when it sees a mismatch, plus an optional daily heartbeat for headline pairs. Keeps running cost near zero.
-- Gas per `attest`: estimated 20–40 Tgas (≈0.002–0.004 NEAR). **To be measured on day 1.**
-- No admin power over anyone's funds. v1 owner can add adapter configs; it is locked (keys removed) after judging.
+- Gas is paid by the caller. Deployment is live on testnet (`simplekilt7490.testnet`); mainnet needs about 1.91 NEAR for the 161 KB wasm (`live mainnet <acct> preflight` prints the exact cost).
+- No admin power over anyone's funds. The owner can only add adapter configs, and `set_owner` hands that to a multisig or DAO (roadmap week 3).
 
 ---
 
@@ -160,22 +160,31 @@ Real breaches persist (Intents' unbacked balances lasted 2 days); in-flight nois
 
 | Command | What it does |
 |---|---|
-| `backed check <target> [--token T]` | Exact same-block snapshot of owed vs held; prints a table |
-| `backed scan intents.near` | Every NEP-141 token in Intents (~370 today), same block |
-| `backed attest <target> <token>` | Sends `attest` to the checker (key from env / near-cli keychain) |
-| `backed chaos <contract.wasm>` | Runs the `backed-chaos` suite and prints findings |
+| `backed check <target> --token T… [--adapter] [--json] [--block H]` | Exact same-block snapshot of owed vs held; any past block with an archival RPC |
+| `backed scan-intents` | Every NEP-141 token in Intents (387 on 2026-11-09), same block |
+| `backed scan-ref` | Ref Finance: total pool reserves (floor) vs holdings |
+| `backed chaos [--scenario intents\|sweat\|rhea]` | Replays the attacks on a local sandbox; exits non-zero if a Backed vault breaks |
+| `backed attest <target> <token> --signer <acct>` | Prints the near-cli command for an on-chain attestation |
+| `backed mcp` | Local MCP server (stdio, read-only) |
 
 - **Same-block snapshot:** RPC view calls accept `block_id`, so off-chain reads of owed and held can use one block height. That's exact, with no race (the technique NEAR's own script uses).
-- **Keeper:** a free GitHub Actions cron runs `backed scan` every 15 minutes and calls `backed attest` only on a mismatch.
-- Built on `near-api` (Rust). The CLI shares adapter code with the checker contract's logic.
+- **Daily scan:** a free GitHub Actions job (`monitor.yml`) runs `backed scan-intents` once a day, commits a snapshot and a history row, and opens a GitHub issue (plus optional Discord/Telegram alerts) when a token newly becomes under-backed. Calling `attest` on a mismatch is roadmap week 2.
+- Plain JSON-RPC over `reqwest`. The CLI shares adapter and parsing code with the checker contract through `crates/checker-logic`, so the off-chain and on-chain checks can't disagree on the math.
+- Prebuilt binaries for Linux, macOS and Windows are published on each `v*` tag (v0.1.1 today).
 
 ## 5. Web page (static, no backend)
-- Hosted on GitHub Pages; reads NEAR RPC directly from the browser.
+- Hosted on Vercel (<https://backed-near.vercel.app>); reads NEAR RPC directly from the browser. Wallet-selector (MyNearWallet, Meteor) on testnet for signing `attest`.
 - **Live:** Intents token-by-token backing (same-block), Rhea lending, Backed-standard contracts. USD values for major tokens from Rhea's `aggregate-oracle.near` (Pyth-compatible `list_prices`, verified live).
-- **On-chain history:** `Suspected`/`Confirmed` records from the checker.
-- **Incident page:** the three 2026 incidents with links to the replay tests.
+- **Checker:** `Suspected`/`Confirmed` records and the breach log, a free same-block **Preview**, and **Sign & record** from the user's wallet.
+- **Replays:** the three 2026 attacks step by step, naive vs Backed, with owed/held bars.
+- **Build:** why, principles, roadmap, and how to start (MCP, library, standard).
 
 ## 6. AI-coding-agent skill
 `SKILL.md` for Claude Code / Codex / other agents:
 - When writing a NEAR contract that holds tokens: use `backed` building blocks; never credit from caller numbers; callbacks private, gas-reserved, log-bounded; run `backed chaos`.
 - Before depositing into a NEAR protocol: run `backed check`.
+
+## 7. MCP server (for agents that move funds)
+- Read-only; never signs. Tools: `check_backing(target, tokens, adapter?, block?)`, `intents_backing_summary()`, `checker_status(target, token, network?, checker?)`.
+- **Hosted:** Streamable HTTP at `https://backed-near.vercel.app/api/mcp` (one Vercel function, `api/mcp.ts`). Listed in the official MCP Registry as `io.github.rohan911438/backed`.
+- **Local:** `backed mcp` over stdio, for agents that shouldn't depend on our server or need past blocks.

@@ -58,22 +58,22 @@ const ROADMAP = [
     ],
   },
   {
-    phase: "Next",
+    phase: "Weeks 1–2 · Nov 15–28",
     state: "next",
     items: [
-      "Checker on mainnet with Intents and Rhea adapters",
       "Report the tax-refund finding to NEAR Intents",
+      "Open the backed_solvency NEP discussion",
+      "Checker on mainnet with Intents and Rhea adapters",
       "Daily job records attestations on-chain",
-      "NEP discussion with NEAR protocol teams",
     ],
   },
   {
-    phase: "Later",
+    phase: "Weeks 3–4 · Nov 29–Dec 12",
     state: "later",
     items: [
-      "Wallet warning before depositing an under-backed token",
       "Protocols self-register via backed_solvency",
       "Checker ownership to a multisig or DAO",
+      "Wallet warning before depositing an under-backed token",
       "Chaos harness for any contract's wasm",
     ],
   },
