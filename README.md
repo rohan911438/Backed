@@ -186,17 +186,18 @@ sequenceDiagram
     participant T as Token (NEP-141)
     participant V as Vault
     participant R as Attacker's receiver
+    Note over V: owes 1000, holds 1000
     A->>T: ft_transfer_call(vault, 100, "notify")
     T->>V: ft_on_transfer(100)
     Note over V: credits attacker +100
     V->>R: on_deposit_notify
     R-->>V: "refund u128::MAX"
-    Note over V: resolve: balance - MAX → panic
+    Note over V: resolve: balance − MAX → panic
     V-->>T: resolve failed
     Note over T: refunds all 100 to attacker
-    Note over V: credit of 100 is still there ⚠
+    Note over V: credit of 100 is still there<br/>owes 1100, holds 1000
     A->>V: withdraw(100)
-    Note over V: owes 1100, holds 1000
+    Note over V: owes 1000, holds 900<br/>100 short ⚠
 ```
 
 The vault's own books say everything is fine, but the token contract disagrees. Backed's invariant is that gap: **owed ≤ held**.
@@ -438,40 +439,33 @@ Example: asked "Is it safe to deposit BATMAN into NEAR Intents?", an agent calls
 
 ### 1. System architecture
 
-Backed has four layers: **prevent** (library), **prove** (attack replays), **verify** (checker, scans) and **use** (CLI, web, MCP, skill). Everything on the right reads public NEAR state; nothing holds user funds.
+Backed has four layers: **prevent** (library), **prove** (attack replays), **verify** (checker, scans) and **use** (CLI, web, MCP, skill). Contracts are built and tested on top; the clients only read public NEAR state, and nothing holds user funds.
 
 ```mermaid
 flowchart TB
-    subgraph PREVENT["Prevent · build time"]
-        LIB["backed crate<br/>Ledger · Delivered/Claimed · cap_refund · LogBudget"]
+    subgraph BUILD["① Prevent and prove · build time"]
+        direction LR
+        LIB["backed crate<br/>Ledger · Delivered / Claimed"]
         SKILL["skill/SKILL.md<br/>AI coding agents"]
-        SKILL -.writes contracts with.-> LIB
+        CHAOS["backed-chaos<br/>3 attack replays in CI"]
     end
-    subgraph PROVE["Prove · CI"]
-        CHAOS["backed-chaos<br/>failure catalog F1–F8 + invariant oracle"]
-        SANDBOX["local NEAR sandbox<br/>naive-vault vs backed-vault<br/>evil-receiver · lying-venue · test-token"]
-        CHAOS --> SANDBOX
+    subgraph CLIENTS["③ Use · read-only clients"]
+        direction LR
+        WEB["Web app"]
+        CLI["CLI"]
+        MCP["MCP server"]
+        CRON["Daily scan"]
     end
-    subgraph CHAIN["NEAR mainnet / testnet"]
-        PROTO["Protocols<br/>intents.near · Rhea lending · Ref · any backed_solvency contract"]
-        TOKENS["NEP-141 token contracts<br/>ft_balance_of(protocol)"]
-        CHECKER["Checker contract<br/>attest · get_status · list_breaches"]
-        CHECKER -- "owed: mt_supply / get_asset / backed_solvency" --> PROTO
-        CHECKER -- "held: ft_balance_of" --> TOKENS
+    subgraph CHAIN["② NEAR mainnet / testnet"]
+        direction LR
+        PROTO["Protocols<br/>Intents · Rhea · Ref<br/>any backed_solvency contract"]
+        TOKENS["Token contracts<br/>ft_balance_of(protocol)"]
+        CHECKER["Checker contract<br/>attest · get_status"]
+        CHECKER -- "owed" --> PROTO
+        CHECKER -- "held" --> TOKENS
     end
-    subgraph USE["Use · clients"]
-        CLI["backed CLI<br/>check · scan-intents · scan-ref · chaos · mcp"]
-        WEB["Web app (Vercel)<br/>live backing · checker · replays"]
-        MCP["Hosted MCP server<br/>/api/mcp"]
-        CRON["Daily scan<br/>GitHub Actions"]
-    end
-    LIB --> CHAOS
-    LIB -. "deployed contracts expose backed_solvency" .-> PROTO
-    CLI & WEB & MCP & CRON -- "JSON-RPC views at one block" --> PROTO
-    CLI & WEB & MCP & CRON --> TOKENS
-    WEB -- "wallet-signed attest" --> CHECKER
-    CRON -- "snapshot + history CSV" --> WEB
-    MCP -- "reads daily snapshot" --> WEB
+    BUILD == "contracts built on backed" ==> CHAIN
+    CLIENTS == "owed + held, read at one block" ==> CHAIN
 ```
 
 ### 2. How a backing check works
@@ -527,7 +521,7 @@ sequenceDiagram
     end
     P-->>K: owed
     T-->>K: held
-    K->>K: on_attest (#[private]): bounded result reads, classify
+    K->>K: on_attest (private callback): bounded reads, classify
     K->>K: record status · log breach only on state change
     K-->>U: refund deposit − storage used
     Note over K: emits event: attestation / breach_suspected / breach_confirmed
@@ -537,14 +531,12 @@ Cross-contract reads land in slightly different blocks, so one bad reading isn't
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Healthy: held ≥ owed
-    [*] --> Suspected: held < owed
+    direction LR
+    [*] --> Healthy
     Healthy --> Suspected: held < owed
-    Suspected --> Suspected: still short, < 30 blocks later
-    Suspected --> Confirmed: still short, ≥ 30 blocks after first seen
+    Suspected --> Confirmed: still short 30+ blocks later
     Suspected --> Healthy: held ≥ owed
     Confirmed --> Healthy: held ≥ owed
-    Confirmed --> Confirmed: still short
 ```
 
 ### 4. Inside a Backed contract: the deposit and withdraw lifecycle
@@ -568,10 +560,10 @@ sequenceDiagram
     end
     Note over A,V: Withdraw
     A->>V: withdraw(token, x)
-    V->>V: ledger.debit_for_withdraw(Claimed x) — owed drops first (R4)
+    V->>V: ledger.debit_for_withdraw(Claimed x): owed drops first (R4)
     V->>T: ft_transfer(user, x)
     T-->>V: result
-    V->>V: #[private] settle_withdraw (R2) — never panics (R3)
+    V->>V: settle_withdraw, a private callback (R2) that never panics (R3)
     alt transfer failed
         V->>V: re-credit x (owed restored)
     end
@@ -609,7 +601,7 @@ flowchart LR
 ```mermaid
 flowchart TD
     CRON["06:17 UTC daily<br/>(GitHub Actions)"] --> BUILD["Build backed CLI"]
-    BUILD --> SCAN["scan-intents: all 370 NEP-141 tokens<br/>owed vs held at one block"]
+    BUILD --> SCAN["scan-intents: every NEP-141 token<br/>(387 on Nov 9), owed vs held at one block"]
     SCAN --> DIFF{"New under-backed<br/>tokens since yesterday?"}
     SCAN --> SNAP["Update web snapshot<br/>+ data/backing-history.csv"]
     SNAP --> PUSH["Commit to main → Vercel redeploys"]
@@ -643,12 +635,19 @@ sequenceDiagram
 
 ```mermaid
 flowchart LR
-    I["Idea: a contract<br/>that holds tokens"] --> W["Write it on backed::Ledger<br/>(or let an agent with SKILL.md)"]
-    W --> U["Unit tests:<br/>owed ≤ held asserted<br/>on every change"]
-    U --> R["backed chaos in CI:<br/>replay the 2026 attacks"]
-    R --> DEP["Deploy to NEAR"]
-    DEP --> REG["Expose backed_solvency<br/>+ register_self on the checker"]
-    REG --> V["Verifiable by anyone:<br/>web · CLI · MCP · on-chain"]
+    subgraph S1["1 · Write"]
+        direction TB
+        I["A contract that<br/>holds tokens"] --> W["Built on backed::Ledger<br/>(or by an agent with SKILL.md)"]
+    end
+    subgraph S2["2 · Test"]
+        direction TB
+        U["Unit tests: owed ≤ held<br/>on every change"] --> R["backed chaos in CI:<br/>the 2026 attacks replayed"]
+    end
+    subgraph S3["3 · Ship"]
+        direction TB
+        DEP["Deploy to NEAR"] --> REG["Expose backed_solvency<br/>+ register_self"] --> V["Verifiable by anyone:<br/>web · CLI · MCP · on-chain"]
+    end
+    S1 --> S2 --> S3
 ```
 
 Full design: [`Idea/03-architecture.md`](Idea/03-architecture.md).
@@ -658,16 +657,12 @@ Full design: [`Idea/03-architecture.md`](Idea/03-architecture.md).
 Everything that's already shipped is listed under [what Backed does](#what-backed-does). The plan below covers only the four weeks after the hackathon (Nov 15 – Dec 12, 2026), and each item builds on code that already exists.
 
 ```mermaid
-timeline
-    title Backed: the 4 weeks after the hackathon
-    Week 1 (Nov 15–21)    : Responsible disclosure of the tax-refund finding to NEAR Intents
-                          : Open the backed_solvency NEP discussion with protocol teams
-    Week 2 (Nov 22–28)    : Checker on mainnet with Intents and Rhea adapters
-                          : Daily job also records attestations on-chain
-    Week 3 (Nov 29–Dec 5) : Protocols self-register via backed_solvency
-                          : Checker ownership to a multisig or DAO
-    Week 4 (Dec 6–12)     : Wallet warning before depositing into an under-backed token
-                          : Chaos harness that runs the replays against any contract's wasm
+flowchart LR
+    W1["<b>Week 1</b> · Nov 15–21<br/>Disclose the finding to NEAR Intents<br/>Open the NEP discussion"]
+    W2["<b>Week 2</b> · Nov 22–28<br/>Checker on mainnet<br/>Daily on-chain attestations"]
+    W3["<b>Week 3</b> · Nov 29–Dec 5<br/>Protocols self-register<br/>Multisig ownership"]
+    W4["<b>Week 4</b> · Dec 6–12<br/>Wallet pre-deposit warning<br/>Replays against any wasm"]
+    W1 --> W2 --> W3 --> W4
 ```
 
 | Week | Item | Starting point today | Done when |
