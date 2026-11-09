@@ -30,7 +30,7 @@ Method: attack the design, fix it, verify against NEAR code or mainnet. Severity
 | # | Sev | Finding | Fix |
 |---|---|---|---|
 | 3.1 | **H** | Solo scope: library + harness + contract + CLI + web + skill. | Strict order with a cut list (see 07). The replays and Intents adapter are must-haves; the rest is trimmable. |
-| 3.2 | **M** | near-sandbox doesn't run natively on Windows. | WSL Ubuntu is installed on this machine; Rust 1.95 + wasm32 target present. |
+| 3.2 | **M** | near-sandbox doesn't run natively on Windows. | Sandbox runs on Linux, macOS or WSL; documented in the README and enforced by a `sandbox` cargo feature, so the default build works everywhere. |
 | 3.3 | **M** | Checker contract size vs $5 budget. | Measured 161 KB after the abuse-resistance changes (164 KB before replacing serde_json::Value). Mainnet deploy ≈ 1.91 NEAR; testnet is free. |
 | 3.4 | **L** | Replays use minimal reproductions, not the production contracts. | Said plainly in the README. Roadmap week 4: run the replays against any contract's wasm. |
 

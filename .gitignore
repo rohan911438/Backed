@@ -1,8 +1,39 @@
+# Build output
 target/
-node_modules/
 web/dist/
-*.log
+*.tsbuildinfo
+
+# Dependencies
+node_modules/
+
+# Secrets and keys (never commit: NEAR keys live in ~/.near-credentials)
 .env
 .env.*
-*.tsbuildinfo
+!.env.example
+.near-credentials/
+neardev/
+*.pem
+*.key
+
+# Deploy tooling state
 .vercel
+
+# Local AI-assistant state and hackathon prep (not part of the product)
+.claude/
+CLAUDE.local.md
+HACKATHON.md
+Idea/09-demo-and-pitch.md
+submission*.json
+
+# Logs and scratch
+*.log
+*.tmp
+scratch/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.swp

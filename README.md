@@ -712,7 +712,7 @@ Idea/                   design documents, incl. user workflows
 
 ## Hackathon
 
-- **Event:** NEAR HACKATHON, Nov 1–14, 2026 (rules in [`HACKATHON.md`](HACKATHON.md))
+- **Event:** NEAR HACKATHON, Nov 1–14, 2026 (rules: <https://nearhackathon.com/HACKATHON.md>)
 - **Tracks:** Open Innovation, Unstoppable DeFi
 - **NEAR features used:** async receipts and callbacks, NEP-141 / 145 / 245 / 297, cross-contract views, near-sdk 5.x, near-workspaces sandbox, wallet-selector
 
@@ -724,8 +724,8 @@ Idea/                   design documents, incl. user workflows
 | [Architecture](Idea/03-architecture.md) | [Innovations](Idea/04-innovations.md) |
 | [Why NEAR](Idea/05-why-near.md) | [Competitors](Idea/06-competitors.md) |
 | [Deliverables and plan](Idea/07-deliverables-and-plan.md) | [Design audit](Idea/08-design-audit.md) |
-| [Demo and pitch](Idea/09-demo-and-pitch.md) | [User workflows](Idea/10-user-workflows.md) |
-| [Go-to-market and target users](Idea/11-go-to-market.md) | [Findings](docs/FINDINGS.md) |
+| [User workflows](Idea/10-user-workflows.md) | [Go-to-market and target users](Idea/11-go-to-market.md) |
+| [Findings](docs/FINDINGS.md) | [Draft NEP: backed_solvency](docs/NEP-backed-solvency.md) |
 
 ## License
 

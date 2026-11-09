@@ -25,14 +25,13 @@ NEAR HACKATHON (Nov 1–14, 2026) · solo · Rust · tracks: **Open Innovation**
 | File | What's inside |
 |---|---|
 | [01-problem-and-evidence.md](01-problem-and-evidence.md) | The bug family, the 3 incidents of 2026 with root causes and sources, our live mainnet scans |
-| [02-product.md](02-product.md) | What Backed is, who uses it and how, what it guarantees and what it doesn't |
+| [02-product.md](02-product.md) | What Backed is, who uses it and how, what it guarantees and what it doesn't, common questions |
 | [03-architecture.md](03-architecture.md) | Technical design: library, chaos harness, checker, scanner, CLI, web app, MCP, agent skill |
 | [04-innovations.md](04-innovations.md) | What's new in the design |
 | [05-why-near.md](05-why-near.md) | Why this only makes sense on NEAR |
 | [06-competitors.md](06-competitors.md) | Big and small competitors, and how we differ |
 | [07-deliverables-and-plan.md](07-deliverables-and-plan.md) | What was delivered against the plan, scope decisions, budget |
 | [08-design-audit.md](08-design-audit.md) | Audit of the design: findings, fixes, how each was verified |
-| [09-demo-and-pitch.md](09-demo-and-pitch.md) | 2-minute demo script, pitch lines, judge Q&A |
 | [10-user-workflows.md](10-user-workflows.md) | Step by step for developers, protocols, agents, AI coding agents and judges |
 | [11-go-to-market.md](11-go-to-market.md) | Target users, how each one starts, distribution, sustainability, first-month targets |
 

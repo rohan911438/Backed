@@ -60,3 +60,32 @@ For any protocol, through the checker and the scans:
 - **Protocols:** stop the bug family that cost NEAR $22M+ this year, and give users public proof of backing they can check themselves.
 - **NEAR ecosystem:** one shared safety standard instead of each team relearning async accounting after a hack. It complements NEAR's planned formal verification with runtime guarantees.
 - **Users and agents:** a simple, trustless signal before depositing.
+
+## Common questions
+
+**"Isn't this just proof of reserves?"**
+Proof of reserves trusts reporters and only watches. Backed reads both numbers from the chain itself, at one block, prevents the bug in code, and proves the prevention with replays. Watching is only the last layer.
+
+**"Is NEAR broken?"**
+No. These are bugs in individual apps. NEAR's async design is deliberate, and its docs warn about callbacks. Each team fixed its own contract after the fact. Backed is the missing tooling: safe patterns by default, plus continuous checking.
+
+**"Why would protocols adopt it?"**
+Being checked costs them nothing: Intents and Rhea are covered today without changes. For new code, the library replaces accounting they'd otherwise hand-write, and the replays run in CI. AI coding agents use it by default through the skill.
+
+**"NEAR already fixed the Intents bug."**
+They fixed one instance (removed deposit notifications, added callback gas). The family remains: any protocol with an internal ledger and callbacks. NEAR's own post-incident script is our core check.
+
+**"Does it stop every hack?"**
+No. It stops the "owe more than you hold" family and makes anything else that drains backing visible. Oracle manipulation, governance attacks and key theft are out of scope.
+
+**"Why testnet?"**
+Every reading in Backed (web app, CLI, daily scan, MCP) is from live mainnet. Only the checker contract, which records a reading on-chain, is on testnet, where the full flow runs end to end: wallet-signed attest, Suspected → Confirmed, and the `backed_solvency` standard with a real deposit. The same wasm deploys to mainnet after a free cost preflight (docs/MAINNET.md); that is week 2 of the roadmap.
+
+**"Who will actually use this?"**
+First, NEAR protocols with an internal ledger: Intents and Rhea are checked today without changing code, and one view method (`backed_solvency`) makes any other protocol checkable. Second, AI agents that move funds: the MCP server is already in the official registry and is one line to add. Third, contract developers and AI coding agents, through the library and the skill. Details: Idea/11-go-to-market.md.
+
+**"What happens after the hackathon?"**
+A 4-week plan, each step building on code that already exists: disclosure to Intents and the NEP discussion (week 1), mainnet checker with on-chain daily attestations (week 2), protocol self-registration and multisig ownership (week 3), a wallet pre-deposit check and replays against any wasm (week 4).
+
+**"Did you find something real?"**
+Yes, and we traced it to the transaction. Two memecoins charge a 1–3% sell tax and then tell Intents the taxed part was "refunded". Intents credits that refund although nothing came back, so every taxed sell through Intents grows the gap by exactly the tax (tx `hmKEgaX2…`: 37,793.33 NINU sold, 1,133.80 credited from nothing). The amounts are small, but the mechanism is Rhea's: a ledger crediting what it was told, not what arrived. Details: docs/FINDINGS.md.
