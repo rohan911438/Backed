@@ -180,7 +180,11 @@ More detail: [`Idea/01-problem-and-evidence.md`](Idea/01-problem-and-evidence.md
 
 The NEAR Intents pattern, simplified:
 
-```mermaid
+![NEAR Intents bug: the resolve callback panics, the token refunds 100, the vault keeps the credit and ends up owing 1000 while holding 900](docs/diagrams/01-intents-bug.png)
+
+<details><summary>Diagram source (Mermaid)</summary>
+
+```text
 sequenceDiagram
     participant A as Attacker
     participant T as Token (NEP-141)
@@ -199,6 +203,8 @@ sequenceDiagram
     A->>V: withdraw(100)
     Note over V: owes 1000, holds 900<br/>100 short ⚠
 ```
+
+</details>
 
 The vault's own books say everything is fine, but the token contract disagrees. Backed's invariant is that gap: **owed ≤ held**.
 
@@ -441,7 +447,11 @@ Example: asked "Is it safe to deposit BATMAN into NEAR Intents?", an agent calls
 
 Backed has four layers: **prevent** (library), **prove** (attack replays), **verify** (checker, scans) and **use** (CLI, web, MCP, skill). Contracts are built and tested on top; the clients only read public NEAR state, and nothing holds user funds.
 
-```mermaid
+![Architecture: build-time library, skill and replays; NEAR chain with protocols, tokens and the checker; read-only clients (web, CLI, MCP, daily scan) reading owed and held at one block](docs/diagrams/02-architecture.png)
+
+<details><summary>Diagram source (Mermaid)</summary>
+
+```text
 flowchart TB
     subgraph BUILD["① Prevent and prove · build time"]
         direction LR
@@ -468,11 +478,17 @@ flowchart TB
     CLIENTS == "owed + held, read at one block" ==> CHAIN
 ```
 
+</details>
+
 ### 2. How a backing check works
 
 The one idea behind every reading: ask the chain for **one final block height**, then read both numbers *at that height*. Two reads at different heights could disagree only because a transfer was in flight.
 
-```mermaid
+![Backing check: get one final block height, read mt_supply and ft_balance_of at that height, compare held with owed](docs/diagrams/03-backing-check.png)
+
+<details><summary>Diagram source (Mermaid)</summary>
+
+```text
 sequenceDiagram
     autonumber
     participant C as Client (CLI / web / MCP)
@@ -495,6 +511,8 @@ sequenceDiagram
     end
 ```
 
+</details>
+
 | Protocol | `owed` comes from | Precision |
 |---|---|---|
 | NEAR Intents | `mt_supply("nep141:<token>")` | Exact |
@@ -506,7 +524,11 @@ sequenceDiagram
 
 Anyone can record a reading on-chain. The checker reads both numbers itself through cross-contract views, so the caller can't influence the result.
 
-```mermaid
+![On-chain attestation: anyone calls attest, the checker reads owed and held itself, classifies, stores and refunds unused storage](docs/diagrams/04-attestation.png)
+
+<details><summary>Diagram source (Mermaid)</summary>
+
+```text
 sequenceDiagram
     autonumber
     actor U as Anyone (wallet)
@@ -527,9 +549,15 @@ sequenceDiagram
     Note over K: emits event: attestation / breach_suspected / breach_confirmed
 ```
 
+</details>
+
 Cross-contract reads land in slightly different blocks, so one bad reading isn't enough to call a breach:
 
-```mermaid
+![Breach states: Healthy to Suspected when held is below owed, Suspected to Confirmed if still short 30+ blocks later, back to Healthy when held covers owed](docs/diagrams/05-breach-states.png)
+
+<details><summary>Diagram source (Mermaid)</summary>
+
+```text
 stateDiagram-v2
     direction LR
     [*] --> Healthy
@@ -539,11 +567,17 @@ stateDiagram-v2
     Confirmed --> Healthy: held ≥ owed
 ```
 
+</details>
+
 ### 4. Inside a Backed contract: the deposit and withdraw lifecycle
 
 The library's rules (R1–R6) placed on the actual message flow. The safe order: **credit only on delivery, debit before sending, settle in a private callback that can't panic.**
 
-```mermaid
+![Deposit and withdraw lifecycle in a Backed vault, with rules R1 to R5 on each step](docs/diagrams/06-vault-lifecycle.png)
+
+<details><summary>Diagram source (Mermaid)</summary>
+
+```text
 sequenceDiagram
     autonumber
     actor A as User
@@ -570,9 +604,15 @@ sequenceDiagram
     Note over V: invariant after every step: owed ≤ held
 ```
 
+</details>
+
 How amounts are typed, so the Rhea-style bug can't compile:
 
-```mermaid
+![Claimed amounts can only feed risk checks; only Delivered amounts can credit a balance; there is no conversion from Claimed to Delivered](docs/diagrams/07-amount-types.png)
+
+<details><summary>Diagram source (Mermaid)</summary>
+
+```text
 flowchart LR
     ARG["caller argument<br/>msg field<br/>route minimum<br/>venue's reply"] --> CL["Claimed&lt;u128&gt;"]
     FT["ft_on_transfer from a<br/>registered token"] --> DL["Delivered&lt;u128&gt;"]
@@ -582,9 +622,15 @@ flowchart LR
     DL --> CR["ledger.credit()<br/>balance grows"]
 ```
 
+</details>
+
 ### 5. Proving it: the attack replay pipeline
 
-```mermaid
+![Replay pipeline: deploy on a fresh sandbox, run the attack, check owed <= held after each step; naive vault breaks, Backed vault must stay safe](docs/diagrams/08-replay-pipeline.png)
+
+<details><summary>Diagram source (Mermaid)</summary>
+
+```text
 flowchart LR
     S["Scenario<br/>(intents · sweat · rhea)"] --> D["Deploy on a fresh sandbox:<br/>token, vault, attacker helpers"]
     D --> STEP["Run the attack as<br/>real transactions"]
@@ -596,9 +642,15 @@ flowchart LR
     RES --> B["backed-vault: SAFE required<br/>(CI fails otherwise)"]
 ```
 
+</details>
+
 ### 6. Daily monitoring workflow
 
-```mermaid
+![Daily monitoring: GitHub Actions scans every Intents token, updates the snapshot and history, and alerts on new under-backed tokens](docs/diagrams/09-daily-monitoring.png)
+
+<details><summary>Diagram source (Mermaid)</summary>
+
+```text
 flowchart TD
     CRON["06:17 UTC daily<br/>(GitHub Actions)"] --> BUILD["Build backed CLI"]
     BUILD --> SCAN["scan-intents: every NEP-141 token<br/>(387 on Nov 9), owed vs held at one block"]
@@ -610,9 +662,15 @@ flowchart TD
     DIFF -- no --> DONE["Done"]
 ```
 
+</details>
+
 ### 7. AI agent workflow (MCP)
 
-```mermaid
+![AI agent flow: the agent calls check_backing before a deposit and proceeds only if the protocol is backed](docs/diagrams/10-agent-mcp.png)
+
+<details><summary>Diagram source (Mermaid)</summary>
+
+```text
 sequenceDiagram
     autonumber
     actor H as Person
@@ -631,9 +689,15 @@ sequenceDiagram
     end
 ```
 
+</details>
+
 ### 8. Developer workflow: from idea to verifiable contract
 
-```mermaid
+![Developer workflow: write on backed::Ledger, test with unit tests and replays, deploy and expose backed_solvency](docs/diagrams/11-developer-workflow.png)
+
+<details><summary>Diagram source (Mermaid)</summary>
+
+```text
 flowchart LR
     subgraph S1["1 · Write"]
         direction TB
@@ -650,13 +714,19 @@ flowchart LR
     S1 --> S2 --> S3
 ```
 
+</details>
+
 Full design: [`Idea/03-architecture.md`](Idea/03-architecture.md).
 
 ## Roadmap: next 4 weeks
 
 Everything that's already shipped is listed under [what Backed does](#what-backed-does). The plan below covers only the four weeks after the hackathon (Nov 15 – Dec 12, 2026), and each item builds on code that already exists.
 
-```mermaid
+![Roadmap: week 1 disclosure and NEP, week 2 mainnet checker, week 3 self-registration and multisig, week 4 wallet warning and replays for any wasm](docs/diagrams/12-roadmap.png)
+
+<details><summary>Diagram source (Mermaid)</summary>
+
+```text
 flowchart LR
     W1["<b>Week 1</b> · Nov 15–21<br/>Disclose the finding to NEAR Intents<br/>Open the NEP discussion"]
     W2["<b>Week 2</b> · Nov 22–28<br/>Checker on mainnet<br/>Daily on-chain attestations"]
@@ -664,6 +734,8 @@ flowchart LR
     W4["<b>Week 4</b> · Dec 6–12<br/>Wallet pre-deposit warning<br/>Replays against any wasm"]
     W1 --> W2 --> W3 --> W4
 ```
+
+</details>
 
 | Week | Item | Starting point today | Done when |
 |---|---|---|---|
@@ -690,7 +762,7 @@ cli/                    backed CLI: check, scan-intents, scan-ref, chaos, attest
 api/mcp.ts              hosted MCP server (Vercel function at /api/mcp); server.json for the MCP Registry
 web/                    Vite + React app: home, live backing, checker (wallet), replays, build
 skill/SKILL.md          instructions for AI coding agents
-docs/                   draft NEP for backed_solvency, mainnet deploy checklist
+docs/                   findings, draft NEP for backed_solvency, mainnet checklist, diagrams/ (README images)
 data/                   daily backing history (written by the monitor workflow)
 scripts/build-wasm.sh   builds every contract with cargo-near
 .github/workflows/      CI (unit tests, sandbox replays, web build), daily scan, CLI release; Pages deploy (manual; the live site is on Vercel)
